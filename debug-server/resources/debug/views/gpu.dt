@@ -1,0 +1,14 @@
+- if (gpuNames.length == 0) {
+div.empty
+  div.empty-icon &#128187;
+  div No GPU devices
+- } else {
+- foreach (i; 0 .. gpuNames.length) {
+div.card
+  div.card-header
+    span.card-title= gpuNames[i]
+    != gpuTagsHtml[i]
+  div.card-body
+    != gpuBodyHtmls[i]
+- }
+- }

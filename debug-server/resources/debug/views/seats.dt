@@ -1,0 +1,29 @@
+- if (seatNames.length == 0) {
+div.empty
+  div.empty-icon &#128433;
+  div No seats
+- } else {
+- foreach (i; 0 .. seatNames.length) {
+div.card
+  div.card-header
+    span.card-title= seatNames[i]
+    != seatTagsHtml[i]
+  div.card-body
+    div.kv
+      span.kv-key Pointer Position
+      span.kv-value
+        span.mono= seatPosStrs[i]
+    div.kv
+      span.kv-key Keyboard Focus
+      span.kv-value!= kbFocusStrs[i]
+    div.kv
+      span.kv-key Pointer Focus
+      span.kv-value!= ptrFocusStrs[i]
+    != ptrSubsurfaceHtmls[i]
+    != ptrConstraintHtmls[i]
+    div.kv
+      span.kv-key Devices
+      span.kv-value= deviceCountStrs[i]
+    != deviceTableHtmls[i]
+- }
+- }

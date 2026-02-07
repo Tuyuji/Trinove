@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up D compiler (LDC)
+        uses: dlang-community/setup-dlang@v2
+        with:
+          compiler: ldc-latest
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            build-essential git make \
+            pkg-config cmake ninja-build gnome-desktop-testing \
+            libasound2-dev libpulse-dev libaudio-dev libfribidi-dev \
+            libjack-dev libsndio-dev \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libxfixes-dev libxi-dev libxss-dev libxtst-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev libdrm-dev libgbm-dev \
+            libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev \
+            libdbus-1-dev libibus-1.0-dev libudev-dev libthai-dev \
+            meson \
+            libffi-dev libexpat1-dev libxml2-dev \
+            python3
+
+      - name: Cache libwayland
+        uses: actions/cache@v4
+        id: wayland-cache
+        with:
+          path: wayland-install
+          key: wayland-noble-1.23.1
+
+      - name: Build libwayland from source
+        if: steps.wayland-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone https://gitlab.freedesktop.org/wayland/wayland.git --depth=1 --branch 1.23.1 wayland-src
+          meson setup wayland-src/build wayland-src \
+            --prefix=${{ github.workspace }}/wayland-install \
+            -Ddocumentation=false \
+            -Dtests=false
+          ninja -C wayland-src/build
+          ninja -C wayland-src/build install
+
+      - name: Make libwayland visible to linker
+        run: |
+          sudo cp -r wayland-install/include/* /usr/local/include/
+          sudo cp -r wayland-install/lib/* /usr/local/lib/
+          sudo cp -r wayland-install/share/pkgconfig/* /usr/local/lib/pkgconfig/ 2>/dev/null || true
+          sudo ldconfig
+
+      - name: Cache SDL3
+        uses: actions/cache@v4
+        id: sdl3-cache
+        with:
+          path: sdl3-install
+          key: sdl3-noble-3.2.0
+
+      - name: Build SDL3 from source
+        if: steps.sdl3-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/libsdl-org/SDL --depth=1 --branch release-3.2.0 sdl3-src
+          cmake -S sdl3-src -B sdl3-src/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/sdl3-install \
+            -DSDL_SHARED=ON \
+            -DSDL_STATIC=OFF \
+            -DSDL_TESTS=OFF
+          cmake --build sdl3-src/build --parallel $(nproc)
+          cmake --install sdl3-src/build
+
+      - name: Make SDL3 visible to linker
+        run: |
+          sudo cp -r sdl3-install/include/* /usr/local/include/
+          sudo cp -r sdl3-install/lib/* /usr/local/lib/
+          sudo ldconfig
+
+      - name: Cache dub packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.dub/packages
+          key: dub-${{ runner.os }}-${{ hashFiles('**/dub.json', '**/dub.selections.json') }}
+          restore-keys: dub-${{ runner.os }}-
+
+      - name: Get latest Dawn release tag
+        id: dawn
+        run: |
+          TAG=$(curl -fsSL "https://api.github.com/repos/Tuyuji/dawn/releases/latest" \
+            -H "User-Agent: trinove-ci" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Dawn library
+        uses: actions/cache@v4
+        with:
+          path: libwebgpu_dawn.a
+          key: dawn-linux-${{ steps.dawn.outputs.tag }}
+
+      - name: Run unit tests
+        run: dub test --root core
+
+      - name: Build
+        run: dub build -b release

@@ -1,0 +1,25 @@
+- if (outputNames.length == 0) {
+div.empty
+  div.empty-icon &#128424;
+  div No outputs
+- } else {
+- foreach (i; 0 .. outputNames.length) {
+div.card
+  div.card-header
+    span.card-title= outputNames[i]
+    != outputTagsHtml[i]
+  div.card-body
+    div.kv
+      span.kv-key Resolution
+      span.kv-value
+        span.mono= outputResStrs[i]
+    div.kv
+      span.kv-key Position
+      span.kv-value
+        span.mono= outputPosStrs[i]
+    div.kv
+      span.kv-key Refresh Rate
+      span.kv-value= outputRefreshStrs[i]
+    != outputDamageHtmls[i]
+- }
+- }

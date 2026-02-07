@@ -1,0 +1,56 @@
+- if (windows.length == 0) {
+div.empty
+  div.empty-icon &#128466;
+  div No windows
+- } else {
+- foreach (i, window; windows) {
+div.card
+  div.card-header
+    span.card-title= window.title.length > 0 ? window.title : "(untitled)"
+    - if (window.state.focused) {
+    span.tag.tag-focused focused
+    - }
+    - if (window.mapped) {
+    span.tag.tag-mapped mapped
+    - } else {
+    span.tag.tag-unmapped unmapped
+    - }
+    - if (window.state.maximized) {
+    span.tag.tag-layer maximized
+    - }
+    - if (window.state.fullscreen) {
+    span.tag.tag-layer fullscreen
+    - }
+    - if (window.state.minimized) {
+    span.tag.tag-unmapped minimized
+    - }
+    - if (window.state.resizing) {
+    span.tag.tag-interaction resizing
+    - }
+    != windowTagsHtml[i]
+    - if (popupCounts[i] > 0) {
+    span.card-badge #{popupCounts[i]} popup(s)
+    - }
+    span.mono.text-muted(style="margin-left: auto; font-size: 0.75em;")= windowClassNames[i]
+  div.card-body
+    div.kv
+      span.kv-key App ID
+      span.kv-value
+        span.mono= window.appId
+    div.kv
+      span.kv-key Position
+      span.kv-value
+        span.mono #{window.position.x}, #{window.position.y}
+    div.kv
+      span.kv-key Size
+      span.kv-value
+        span.mono #{window.surfaceSize.x} x #{window.surfaceSize.y}
+    div.kv
+      span.kv-key Layer
+      span.kv-value
+        span.tag.tag-layer= windowLayerNames[i]
+    != constraintHtmls[i]
+    != popupSectionHtmls[i]
+    != subsurfaceSectionHtmls[i]
+- }
+- }

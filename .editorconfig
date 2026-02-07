@@ -1,0 +1,7 @@
+root = true
+
+[*]
+indent_style = tab
+max_line_length = 120
+dfmt_soft_max_line_length = 120
+dfmt_brace_style = allman

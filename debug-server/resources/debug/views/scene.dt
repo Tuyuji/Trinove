@@ -1,0 +1,8 @@
+!= damageArenaCard
+!= damageListCard
+div.card
+  div.card-header
+    span.card-title Layers
+  div.card-body
+    div.tree
+      != layersHtml

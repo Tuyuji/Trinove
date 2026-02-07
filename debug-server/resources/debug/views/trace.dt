@@ -1,0 +1,19 @@
+div#trace-list
+  div.card
+    div.card-header
+      span.card-title Settings
+    div.card-body
+      button(class=autoEnableTracing ? "nav-btn tag tag-interaction" : "nav-btn tag tag-unmapped", hx-get="/view/trace/auto/toggle", hx-target="#trace-list", hx-swap="innerHTML", style="margin: 4px;")= autoEnableTracing ? "Auto-record: ON" : "Auto-record: OFF"
+      span.text-muted.text-small(style="margin-left: 8px;") Automatically enable tracing on new windows
+  - if (windowCount == 0) {
+  div.empty
+    div.empty-icon &#128202;
+    div No windows to trace
+  - } else {
+  div.card
+    div.card-header
+      span.card-title Windows
+    div.card-body
+      != windowTableHtml
+  - }
+div#trace-content

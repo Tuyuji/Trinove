@@ -1,0 +1,21 @@
+div.card
+  div.card-header
+    span.card-title= title
+    span(class=tagClass)= tagText
+    - if (!isEmpty) {
+    span.card-badge #{eventCount} events
+    - }
+    - if (isLive && isEmpty) {
+    button.refresh-btn(style="margin-left: auto;", hx-get="/view/trace/clear/" ~ idxStr, hx-target="#trace-content", hx-swap="innerHTML") Clear
+    - } else if (isLive && !isEmpty) {
+    a.refresh-btn(style="margin-left: auto;", href="/view/trace/export/" ~ idxStr, target="_blank") Export
+    button.refresh-btn(hx-get="/view/trace/clear/" ~ idxStr, hx-target="#trace-content", hx-swap="innerHTML") Clear
+    - }
+  div.card-body
+    - if (isEmpty) {
+    div.empty
+      div.empty-icon &#128202;
+      div No events recorded yet
+    - } else {
+    pre.mermaid!= mermaidDiagram
+    - }

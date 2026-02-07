@@ -1,0 +1,19 @@
+div.card(hx-get="/view/overview/runtime", hx-trigger="every 2s", hx-swap="outerHTML")
+  div.card-header
+    span.card-title Runtime
+  div.card-body
+    div.kv
+      span.kv-key Uptime
+      span.kv-value= uptimeStr
+    div.kv
+      span.kv-key Windows
+      span.kv-value #{windowCount}
+    div.kv
+      span.kv-key Popups
+      span.kv-value #{popupCount}
+    div.kv
+      span.kv-key Seats
+      span.kv-value #{seatCount}
+    div.kv
+      span.kv-key Outputs
+      span.kv-value #{outputCount}

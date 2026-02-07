@@ -1,0 +1,7 @@
+div.card
+  div.card-header
+    span.card-title Cleared
+  div.card-body
+    div.empty
+      div.empty-icon &#10003;
+      div Trace cleared

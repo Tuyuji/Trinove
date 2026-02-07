@@ -1,0 +1,11 @@
+div.card(hx-get="/view/overview/scene", hx-trigger="every 2s", hx-swap="outerHTML")
+  div.card-header
+    span.card-title Scene Graph
+    span.card-badge #{nodeCount} nodes
+  div.card-body
+    div.kv
+      span.kv-key Layers
+      span.kv-value #{layerCount}
+    div.kv
+      span.kv-key Total Nodes
+      span.kv-value #{nodeCount}

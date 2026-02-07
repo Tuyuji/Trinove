@@ -1,0 +1,13 @@
+{
+	"fileVersion": 1,
+	"versions": {
+		"bindbc-common": "1.0.5",
+		"bindbc-loader": "1.1.5",
+		"bindbc-sdl": "2.3.4",
+		"derelict-util": "2.0.6",
+		"diet-ng": "1.8.4",
+		"wayland": "0.5.0-waiku",
+		"xcb-d": "2.1.1+1.11.1",
+		"xkbcommon-d": "0.5.1"
+	}
+}

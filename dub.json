@@ -1,0 +1,34 @@
+{
+	"name": "trinove",
+	"description": "A wayland compositor",
+	"license": "GPL-2.0-only",
+	"authors": [
+		"Reece Hagan"
+	],
+	"copyright": "Copyright © 2026, Reece Hagan",
+	"targetType": "executable",
+	"targetName": "trinove",
+	"dependencies": {
+		"trinove:core": "*",
+		"trinove:backend-sdl": "*"
+	},
+
+	"subPackages": [
+		"./core/",
+		"./backend-sdl/",
+		"./debug-server/"
+	],
+
+	"configurations": [
+		{
+			"name": "default"
+		},
+		{
+			"name": "debug-server",
+			"versions": ["TrinoveDebugServer"],
+			"dependencies": {
+				"trinove:debug-server": "*"
+			}
+		}
+	]
+}

@@ -1,0 +1,37 @@
+{
+	"name": "core",
+	"targetType": "library",
+	"sourcePaths": [
+		"source",
+		"bindings"
+	],
+	"importPaths": [
+		"source",
+		"bindings"
+	],
+	"dependencies": {
+		"wayland": {
+			"repository": "git+https://github.com/Tuyuji/wayland-d.git",
+			"version": "488d49fd7ec3e997f5855cfde8e2ffc4049a0a95"
+		},
+		"wayland:server": "*",
+		"wayland:scanner": "*",
+		"xkbcommon-d": "~>0.5.1"
+	},
+	"stringImportPaths": ["resources"],
+	"dflags": ["-preview=bitfields"],
+	"libs": [
+		"xkbcommon",
+		"webgpu_dawn",
+		"stdc++"
+	],
+	"lflags": [
+		"-L$PACKAGE_DIR/.."
+	],
+	"preGenerateCommands": [
+		"python3 $PACKAGE_DIR/../tools/generate_protocols.py $PACKAGE_DIR/protocols.json"
+	],
+	"preBuildCommands": [
+		"python3 $PACKAGE_DIR/../tools/fetch_dawn.py $PACKAGE_DIR/.."
+	]
+}

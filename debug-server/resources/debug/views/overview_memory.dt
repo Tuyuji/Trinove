@@ -1,0 +1,26 @@
+div.card(hx-get="/view/overview/memory", hx-trigger="every 3s", hx-swap="outerHTML")
+  div.card-header
+    span.card-title Memory
+  div.card-body
+    div.kv
+      span.kv-key Private Memory
+      span.kv-value= privMemStr
+    div.kv
+      span.kv-key GC Used
+      span.kv-value= gcUsedStr
+    div.kv
+      span.kv-key GC Pool
+      span.kv-value= gcPoolStr
+    - if (isDebugBuild) {
+    div.kv
+      span.kv-key Non-GC Allocated
+      span.kv-value= nonGcStr
+    - }
+    div.kv
+      span.kv-key D Tracked Total
+      span.kv-value= dTrackedStr
+    - if (hasExternalMem) {
+    div.kv
+      span.kv-key External
+      span.kv-value= externalStr
+    - }

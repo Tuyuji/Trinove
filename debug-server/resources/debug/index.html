@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waiku Debug</title>
+    <link rel="stylesheet" href="/style.css">
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <header>
+        <h1>Waiku</h1>
+        <span class="subtitle">Compositor Debug</span>
+    </header>
+
+    <nav>
+        <button class="nav-btn" data-view="/view/overview"
+                hx-get="/view/overview" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">
+            Overview
+        </button>
+        <button class="nav-btn" data-view="/view/scene"
+                hx-get="/view/scene" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">
+            Scene Graph
+        </button>
+        <button class="nav-btn" data-view="/view/windows"
+                hx-get="/view/windows" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">
+            Windows
+        </button>
+        <button class="nav-btn" data-view="/view/seats"
+                hx-get="/view/seats" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">
+            Seats
+        </button>
+        <button class="nav-btn" data-view="/view/outputs"
+                hx-get="/view/outputs" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">
+            Outputs
+        </button>
+        <button class="nav-btn" data-view="/view/gpu"
+                hx-get="/view/gpu" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">
+            GPU
+        </button>
+        <button class="nav-btn" data-view="/view/trace"
+                hx-get="/view/trace" hx-target="#content" hx-swap="innerHTML" hx-push-url="true">
+            Protocol Trace
+        </button>
+    </nav>
+
+    <main id="content" data-view="%%INITIAL_VIEW%%" hx-get="%%INITIAL_VIEW%%" hx-trigger="load" hx-swap="innerHTML">
+        <div class="loading">Loading...</div>
+    </main>
+
+    <footer>
+        <span class="status" hx-ext="sse" sse-connect="/events" sse-swap="status">
+            Connecting...
+        </span>
+        <button class="refresh-btn" onclick="refreshCurrentView()">
+            Refresh
+        </button>
+    </footer>
+
+    <script>
+        const content = document.getElementById('content');
+
+        // Set active nav button based on data-view on the #content element (set server-side)
+        function syncActiveNav() {
+            const currentView = content.getAttribute('data-view');
+            document.querySelectorAll('.nav-btn[data-view]').forEach(btn => {
+                const matches = btn.getAttribute('data-view') === currentView;
+                btn.classList.toggle('active', matches);
+            });
+        }
+
+        // Sync on initial load
+        document.addEventListener('DOMContentLoaded', syncActiveNav);
+
+        // Handle nav button clicks - update the tracked view and sync active state
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const path = btn.getAttribute('hx-get');
+                content.setAttribute('data-view', path);
+                content.setAttribute('hx-get', path);
+                htmx.process(content);
+                syncActiveNav();
+            });
+        });
+
+        // Manual refresh of current view
+        function refreshCurrentView() {
+            const path = content.getAttribute('data-view');
+            htmx.ajax('GET', path, { target: '#content', swap: 'innerHTML' });
+        }
+
+        // Initialize Mermaid
+        mermaid.initialize({ startOnLoad: false, theme: 'neutral' });
+
+        // Re-render Mermaid diagrams after HTMX swaps content
+        document.body.addEventListener('htmx:afterSwap', () => {
+            mermaid.run({ querySelector: '.mermaid' });
+        });
+
+        // Handle trace updates via SSE - use vanilla EventSource for reliability
+        const evtSource = new EventSource('/events');
+
+        evtSource.addEventListener('trace-update', (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                const mermaidEl = document.querySelector('#trace-content .mermaid');
+                const badgeEl = document.querySelector('#trace-content .card-badge');
+
+                if (mermaidEl && data.mermaid) {
+                    // Preserve min-height during re-render to prevent scroll jumping
+                    const currentHeight = mermaidEl.offsetHeight;
+                    if (currentHeight > 0) {
+                        mermaidEl.style.minHeight = currentHeight + 'px';
+                    }
+
+                    // Clear previous render and update content
+                    mermaidEl.removeAttribute('data-processed');
+                    mermaidEl.innerHTML = data.mermaid;
+                    mermaid.run({ nodes: [mermaidEl] }).then(() => {
+                        // Remove min-height so container can shrink to natural size
+                        mermaidEl.style.minHeight = '';
+                    });
+                }
+
+                if (badgeEl && data.eventCount !== undefined) {
+                    badgeEl.textContent = data.eventCount + ' events';
+                }
+            } catch (err) {
+                console.error('Failed to parse trace update:', err);
+            }
+        });
+    </script>
+</body>
+</html>
