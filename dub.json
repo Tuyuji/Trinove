@@ -1,7 +1,7 @@
 {
 	"name": "trinove",
 	"description": "A wayland compositor",
-	"license": "GPL-2.0-only",
+	"license": "MPL-2.0",
 	"authors": [
 		"Reece Hagan"
 	],
