@@ -120,6 +120,11 @@ pure nothrow @safe @nogc:
 		this = mixin("this " ~ op ~ " scalar");
 		return this;
 	}
+
+	TVector2!U opCast(V : TVector2!U, U)() const
+	{
+		return TVector2!U(cast(U) x, cast(U) y);
+	}
 }
 
 alias Vector = TVector!(double);
