@@ -428,8 +428,7 @@ class WindowConductor : ISubsystem
 		if (c is null || !c.active || c.type != ConstraintType.lock)
 			return false;
 
-		seat.notifyRelativeMotion(event.timestampMs, event.pointerMotion.delta.x, event.pointerMotion.delta.y,
-				event.pointerMotion.deltaUnaccel.x, event.pointerMotion.deltaUnaccel.y);
+		seat.notifyRelativeMotion(event.timestampMs, event.pointerMotion.delta, event.pointerMotion.deltaUnaccel);
 		seat.sendPointerFrame();
 		return true;
 	}

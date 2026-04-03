@@ -652,7 +652,7 @@ class Seat : WlSeat
 
 	// Send pointer motion to focused client (surface-local coordinates)
 	// Caller must send sendPointerFrame() after all pointer events in the group.
-	void notifyPointerMotion(double sx, double sy)
+	void notifyPointerMotion(Vector2 surfaceLocal)
 	{
 		if (_pointerFocusSurface is null)
 			return;
@@ -661,13 +661,13 @@ class Seat : WlSeat
 		{
 			auto time = currentTimeMs();
 			foreach (p; state.pointers)
-				p.sendMotion(time, WlFixed.create(sx), WlFixed.create(sy));
+				p.sendMotion(time, WlFixed.create(surfaceLocal.x), WlFixed.create(surfaceLocal.y));
 		}
 	}
 
 	// Send relative pointer motion to focused client (unclipped delta)
 	// Caller must send sendPointerFrame() after all pointer events in the group.
-	void notifyRelativeMotion(uint timestampMs, double dx, double dy, double dxUnaccel, double dyUnaccel)
+	void notifyRelativeMotion(uint timestampMs, Vector2 delta, Vector2 deltaUnaccel)
 	{
 		if (_pointerFocusSurface is null)
 			return;
@@ -683,8 +683,9 @@ class Seat : WlSeat
 
 			foreach (rp; state.relativePointers)
 			{
-				rp.sendRelativeMotion(utimeHi, utimeLo, WlFixed.create(dx), WlFixed.create(dy),
-						WlFixed.create(dxUnaccel), WlFixed.create(dyUnaccel));
+				rp.sendRelativeMotion(utimeHi, utimeLo,
+						WlFixed.create(delta.x), WlFixed.create(delta.y),
+						WlFixed.create(deltaUnaccel.x), WlFixed.create(deltaUnaccel.y));
 			}
 		}
 	}
@@ -744,19 +745,15 @@ class Seat : WlSeat
 		}
 	}
 
-	// Dispatch an input event to the focused client.
-	// Called by the WM for events it does not consume.
-	void dispatchToFocusedClient(InputEvent event)
+	void notifyFocusedClient(InputEvent event, Vector2 surfaceLocal)
 	{
 		final switch (event.type)
 		{
 		case InputEventType.pointerMotion:
 			if (pointerFocusSurface !is null)
 			{
-				auto localPos = surfaceLocalPosition(pointerPosition);
-				notifyPointerMotion(localPos.x, localPos.y);
-				notifyRelativeMotion(event.timestampMs, event.pointerMotion.delta.x, event.pointerMotion.delta.y,
-						event.pointerMotion.deltaUnaccel.x, event.pointerMotion.deltaUnaccel.y);
+				notifyPointerMotion(surfaceLocal);
+				notifyRelativeMotion(event.timestampMs, event.pointerMotion.delta, event.pointerMotion.deltaUnaccel);
 				sendPointerFrame();
 			}
 			break;
@@ -764,8 +761,7 @@ class Seat : WlSeat
 		case InputEventType.pointerMotionAbsolute:
 			if (pointerFocusSurface !is null)
 			{
-				auto localPos = surfaceLocalPosition(pointerPosition);
-				notifyPointerMotion(localPos.x, localPos.y);
+				notifyPointerMotion(surfaceLocal);
 				sendPointerFrame();
 			}
 			break;

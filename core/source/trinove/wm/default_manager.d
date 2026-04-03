@@ -382,37 +382,41 @@ class DefaultWindowManager : IWindowManager
 
 	private void handleInput(Seat seat, InputEvent event)
 	{
-		bool handled = false;
+		bool consumed = false;
 
 		switch (event.type)
 		{
 		case InputEventType.keyPress:
-			handled = handleKeyPress(seat, event);
+			consumed = handleKeyPress(seat, event);
 			break;
 
 		case InputEventType.pointerMotionAbsolute:
-			handled = handlePointerMotion(seat, event.pointerAbsolute.pos);
+			consumed = handlePointerMotion(seat, event.pointerAbsolute.pos);
 			break;
 
 		case InputEventType.pointerMotion:
 			if (_conductor.handleLockedPointerMotion(seat, event))
 			{
-				handled = true;
+				consumed = true;
 				break;
 			}
-			handled = handlePointerMotion(seat, seat.pointerPosition + event.pointerMotion.delta);
+			consumed = handlePointerMotion(seat, seat.pointerPosition + event.pointerMotion.delta);
 			break;
 
 		case InputEventType.pointerButton:
-			handled = handlePointerButton(seat, event.pointerButton.button, event.pointerButton.pressed);
+			consumed = handlePointerButton(seat, event.pointerButton.button, event.pointerButton.pressed);
 			break;
 
 		default:
 			break;
 		}
 
-		if (!handled)
-			seat.dispatchToFocusedClient(event);
+		if (!consumed)
+		{
+			auto local = seat.pointerFocusSurface !is null
+				? seat.surfaceLocalPosition(seat.pointerPosition) : Vector2.init;
+			seat.notifyFocusedClient(event, local);
+		}
 	}
 
 	private bool handleKeyPress(Seat seat, InputEvent event)
