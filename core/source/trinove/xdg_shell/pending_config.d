@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 Reece Hagan
 
-module trinove.shell.pending_config;
+module trinove.xdg_shell.pending_config;
 
 import std.typecons : Nullable;
 

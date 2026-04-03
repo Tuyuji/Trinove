@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 Reece Hagan
-module trinove.shell.wm_base;
+module trinove.xdg_shell.wm_base;
 
 import trinove.protocols.xdg_shell;
 import trinove.wm.conductor : WindowConductor;
-import trinove.shell.surface;
-import trinove.shell.positioner;
+import trinove.xdg_shell.surface;
+import trinove.xdg_shell.positioner;
 import trinove.surface;
 import wayland.server;
 import trinove.display_manager;

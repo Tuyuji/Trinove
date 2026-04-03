@@ -6,7 +6,7 @@ module trinove.surface.dmabuf;
 import trinove.protocols.linux_dmabuf;
 import trinove.surface.buffer : IWaylandBuffer;
 import trinove.surface.surface : WaiSurface;
-import trinove.shell.surface : WaiXdgSurface;
+import trinove.xdg_shell.surface : WaiXdgSurface;
 import trinove.math.vector : Vector2U;
 import trinove.math.rect : Rect;
 import trinove.gpu.itexture : ITexture;

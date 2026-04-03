@@ -8,7 +8,6 @@ import trinove.surface.buffer;
 import trinove.surface.role : ISurfaceRole, ISurfaceExtension;
 import trinove.surface.cursor_role : CursorRole;
 import trinove.surface.subsurface : WaiSubsurface;
-import trinove.shell.surface;
 import trinove.math : Vector2I, Vector2U;
 import trinove.math.rect : Rect;
 import trinove.damage : DamageList;
@@ -163,11 +162,6 @@ final class WaiSurface : WlSurface
 	void removeExtension(ISurfaceExtension ext)
 	{
 		extensions = extensions.remove!(e => e is ext);
-	}
-
-	WaiXdgSurface xdgSurface()
-	{
-		return cast(WaiXdgSurface) role;
 	}
 
 	this(WaiCompositor compositor, WlClient cl, uint id)

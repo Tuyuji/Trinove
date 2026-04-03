@@ -52,7 +52,7 @@ class Popup : View
 	// Request that this popup dismiss itself.
 	void dismiss()
 	{
-		import trinove.shell.popup : WaiXdgPopup;
+		import trinove.xdg_shell.popup : WaiXdgPopup;
 
 		auto p = cast(WaiXdgPopup) protocol;
 		if (p)
@@ -62,7 +62,7 @@ class Popup : View
 	// Get the WaiSurface associated with this popup (via xdgPopup)
 	override WaiSurface getSurface()
 	{
-		import trinove.shell.popup : WaiXdgPopup;
+		import trinove.xdg_shell.popup : WaiXdgPopup;
 
 		auto popup = cast(WaiXdgPopup) protocol;
 		if (popup && popup.xdgSurface)

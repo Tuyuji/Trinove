@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 Reece Hagan
 
-module trinove.shell.xdg_decoration;
+module trinove.xdg_shell.xdg_decoration;
 
 import trinove.protocols.xdg_decoration_v1;
-import trinove.shell.toplevel : WaiXdgToplevel;
+import trinove.xdg_shell.toplevel : WaiXdgToplevel;
 import trinove.surface.surface : WaiSurface;
 import trinove.surface.role : ISurfaceExtension;
 import trinove.wm.conductor : WindowConductor;

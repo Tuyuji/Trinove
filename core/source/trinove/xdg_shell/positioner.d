@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 Reece Hagan
 
-module trinove.shell.positioner;
+module trinove.xdg_shell.positioner;
 
 import trinove.protocols.xdg_shell;
 import trinove.math;

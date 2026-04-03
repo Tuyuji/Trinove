@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 Reece Hagan
-module trinove.shell.surface;
+module trinove.xdg_shell.surface;
 
 import trinove.protocols.xdg_shell;
-import trinove.shell.wm_base;
-import trinove.shell.toplevel;
-import trinove.shell.popup;
-import trinove.shell.positioner;
+import trinove.xdg_shell.wm_base;
+import trinove.xdg_shell.toplevel;
+import trinove.xdg_shell.popup;
+import trinove.xdg_shell.positioner;
 import trinove.surface;
 import trinove.math.rect;
 import trinove.surface.role : ISurfaceRole, IXdgRole;
