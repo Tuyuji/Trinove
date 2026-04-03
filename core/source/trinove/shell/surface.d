@@ -9,7 +9,6 @@ import trinove.shell.popup;
 import trinove.shell.positioner;
 import trinove.surface;
 import trinove.math.rect;
-import trinove.damage : DamageList;
 import trinove.surface.role : ISurfaceRole, IXdgRole;
 import trinove.display_manager : getDisplay;
 import trinove.util : getResVersion, onDestroyCallDestroy;
@@ -26,8 +25,6 @@ final class WaiXdgSurface : XdgSurface, ISurfaceRole
 	uint pendingSerial;
 	uint lastAckedSerial;
 	bool configured;
-
-	DamageList pendingDamage = DamageList.init;
 
 	package Rect _pendingWindowGeometry;
 	package bool _hasPendingWindowGeometry;
@@ -58,24 +55,16 @@ final class WaiXdgSurface : XdgSurface, ISurfaceRole
 
 	void onDamage(Rect damage)
 	{
-		// Surface coords = buffer coords while no transform/scale is implemented
-		if (damage.width > 0 && damage.height > 0)
-			pendingDamage.add(damage);
 	}
 
 	void onDamageBuffer(Rect damage)
 	{
-		// Buffer coords = surface coords while no transform/scale is implemented
-		if (damage.width > 0 && damage.height > 0)
-			pendingDamage.add(damage);
 	}
 
 	void onCommit()
 	{
 		if (xdgRole !is null)
 			xdgRole.onCommit();
-
-		pendingDamage.clear();
 	}
 
 	void onSurfaceDestroyed()
@@ -99,22 +88,6 @@ final class WaiXdgSurface : XdgSurface, ISurfaceRole
 
 		auto tl = new WaiXdgToplevel(this, cl, id);
 		xdgRole = tl;
-
-		// Re-attach any existing subsurface children to the new Window's containerNode.
-		if (surface !is null && surface.subsurfaceChildren.length > 0)
-		{
-			import trinove.surface.subsurface : WaiSubsurface;
-
-			foreach (sub; surface.subsurfaceChildren)
-			{
-				if (auto waiSub = cast(WaiSubsurface) sub)
-				{
-					if (waiSub.containerNode.parent !is null)
-						waiSub.containerNode.parent.removeChild(waiSub.containerNode);
-					tl.window.containerNode.addChild(waiSub.containerNode);
-				}
-			}
-		}
 
 		// Send initial configure
 		tl.sendConfigureEvent();
@@ -147,8 +120,6 @@ final class WaiXdgSurface : XdgSurface, ISurfaceRole
 		if (surface)
 			surface.role = null;
 		surface = null;
-
-		pendingDamage.release();
 	}
 
 	override XdgPopup getPopup(WlClient cl, uint id, XdgSurface parent, XdgPositioner positioner)

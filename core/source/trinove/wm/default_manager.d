@@ -5,7 +5,8 @@ module trinove.wm.default_manager;
 
 import trinove.math;
 import trinove.layer;
-import trinove.renderer.scene;
+import trinove.renderer : RenderSubsystem;
+import trinove.renderer.canvas : ICanvas;
 import trinove.backend.input;
 import trinove.seat;
 import trinove.seat_manager;
@@ -21,6 +22,7 @@ import trinove.output_manager;
 import trinove.events;
 import trinove.debug_.protocol_tracer : traceEnter, Actor;
 import std.algorithm : remove;
+import std.traits : EnumMembers;
 import std.typecons : Nullable;
 
 // Default window management policy.
@@ -31,15 +33,13 @@ class DefaultWindowManager : IWindowManager
 	private
 	{
 		WindowConductor _conductor;
-		SceneGraph _scene;
+		RenderSubsystem _renderSubsystem;
 		SeatManager _seatManager;
 		OutputManager _outputManager;
 
-		WindowDecoration[Window] _decorations;
 		SeatInteraction[Seat] _seatInteractions;
 
-		// Cascade placement state.
-		Vector2I _nextWindowPos;
+		Vector2I _nextWindowPos = Vector2I(50, 50);
 	}
 
 	override @property string name()
@@ -55,7 +55,7 @@ class DefaultWindowManager : IWindowManager
 	override void startup(WindowConductor conductor)
 	{
 		_conductor = conductor;
-		_scene = conductor.scene;
+		_renderSubsystem = conductor.renderSubsystem;
 		_seatManager = conductor.seatManager;
 		_outputManager = conductor.outputManager;
 		Seat.OnInputEvent.subscribe(&handleInput);
@@ -68,16 +68,16 @@ class DefaultWindowManager : IWindowManager
 
 	override void onWindowAdded(Window window)
 	{
-		// Placement
+		Vector2I framePos;
 		if (window.parentWindow !is null && window.parentWindow.mapped)
 		{
 			auto p = window.parentWindow;
-			window.position = Vector2I(p.position.x + (cast(int) p.surfaceSize.x - cast(int) window.surfaceSize.x) / 2,
+			framePos = Vector2I(p.position.x + (cast(int) p.surfaceSize.x - cast(int) window.surfaceSize.x) / 2,
 					p.position.y + (cast(int) p.surfaceSize.y - cast(int) window.surfaceSize.y) / 2);
 		}
 		else
 		{
-			window.position = _nextWindowPos;
+			framePos = _nextWindowPos;
 			_nextWindowPos.x += 10;
 			_nextWindowPos.y += 10;
 			if (_nextWindowPos.x > 400)
@@ -86,27 +86,17 @@ class DefaultWindowManager : IWindowManager
 				_nextWindowPos.y = 100;
 		}
 
-		// Scene graph setup
-		window.containerNode.position = Vector2F(window.position.x, window.position.y);
-		window.containerNode.visible = true;
-		window.contentNode.size = Vector2F(window.surfaceSize.x, window.surfaceSize.y);
-		_scene.layerRoots[window.layer].addChild(window.containerNode);
+		window.position = framePos;
 
-		// Apply SSD if requested
-		if (window.state.serverDecorations)
-			applyDecoration(window);
-
-		// Give keyboard focus
 		foreach (seat; _seatManager.seats)
 			_conductor.setKeyboardFocus(seat, window);
 
 		OnWindowAdded.fire(window);
-		_scene.scheduleRepaint();
+		_renderSubsystem.scheduleRepaint();
 	}
 
 	override void onWindowRemoved(Window window)
 	{
-		// End any active interaction on this window
 		foreach (seat; _seatInteractions.byKey())
 		{
 			if (auto si = seat in _seatInteractions)
@@ -114,19 +104,6 @@ class DefaultWindowManager : IWindowManager
 				if (si.interactionView is window)
 					si.endInteraction();
 			}
-		}
-
-		// Remove decoration
-		if (auto dec = window in _decorations)
-		{
-			if (dec.container.parent !is null)
-				dec.container.parent.removeChild(dec.container);
-			_decorations.remove(window);
-		}
-		else
-		{
-			if (window.containerNode.parent !is null)
-				window.containerNode.parent.removeChild(window.containerNode);
 		}
 
 		OnWindowRemoved.fire(window);
@@ -142,45 +119,18 @@ class DefaultWindowManager : IWindowManager
 
 	override void onWindowStateChanged(Window window)
 	{
-		if (auto dec = window in _decorations)
-		{
-			dec.clientPosition = window.position;
-			dec.updateGeometry();
-			dec.container.addFullDamage();
-		}
-		else
-		{
-			window.containerNode.position = Vector2F(window.position.x, window.position.y);
-			window.contentNode.size = Vector2F(window.surfaceSize.x, window.surfaceSize.y);
-			window.containerNode.addFullDamage();
-		}
 	}
 
 	override void onWindowFocusChanged(Window window, bool focused)
 	{
-		if (auto dec = window in _decorations)
-			dec.updateFocus(focused);
-
 		if (focused)
 			raiseWindow(window);
 
-		_scene.scheduleRepaint();
+		_renderSubsystem.scheduleRepaint();
 	}
 
 	override void onWindowRaised(Window window)
 	{
-		auto layerRoot = _scene.layerRoots[window.layer];
-
-		if (auto dec = window in _decorations)
-		{
-			layerRoot.removeChild(dec.container);
-			layerRoot.addChild(dec.container);
-		}
-		else
-		{
-			layerRoot.removeChild(window.containerNode);
-			layerRoot.addChild(window.containerNode);
-		}
 	}
 
 	override void onMaximizeRequest(Window window)
@@ -232,9 +182,6 @@ class DefaultWindowManager : IWindowManager
 			return;
 		auto area = output.viewport();
 
-		// Hide decorations immediately for fullscreen
-		removeDecoration(window);
-
 		window.configure().fullscreen().size(area.size).position(area.position).send();
 	}
 
@@ -247,7 +194,6 @@ class DefaultWindowManager : IWindowManager
 
 		auto restoreGeo = window.savedGeometry;
 
-		// If window was maximized before fullscreen, restore to maximized
 		if (window.state.maximized)
 		{
 			auto output = _conductor.outputForWindow(window);
@@ -255,26 +201,18 @@ class DefaultWindowManager : IWindowManager
 				restoreGeo = output.viewport();
 		}
 
-		// Restore decorations if window prefers SSD
-		if (window.state.serverDecorations)
-			applyDecoration(window);
-
 		window.configure().unfullscreen().size(restoreGeo.size).position(restoreGeo.position).send();
 	}
 
 	override void onMinimizeRequest(Window window)
 	{
 		window.state.minimized = true;
-		window.syncVisibility();
-		_scene.scheduleRepaint();
+		_renderSubsystem.scheduleRepaint();
 	}
 
 	override void onDecorationPreference(Window window, bool ssd)
 	{
-		if (ssd)
-			applyDecoration(window);
-		else
-			removeDecoration(window);
+		window.state.serverDecorations = false;
 	}
 
 	override void onShowWindowMenuRequest(Seat seat, Window window, Vector2I localPos)
@@ -285,21 +223,18 @@ class DefaultWindowManager : IWindowManager
 	{
 		auto si = getOrCreateSeatInteraction(seat);
 		auto pos = seat.pointerPosition;
-		si.beginMove(window, Vector2I(cast(int) pos.x, cast(int) pos.y), window.position);
+		si.beginMove(window, cast(Vector2I) pos, window.position);
 	}
 
 	override void onResizeRequest(Seat seat, Window window, DecorationHit edge)
 	{
 		auto si = getOrCreateSeatInteraction(seat);
 		auto pos = seat.pointerPosition;
-		si.beginResize(window, Vector2I(cast(int) pos.x, cast(int) pos.y), window.position, window.clientBounds().size, edge);
+		si.beginResize(window, cast(Vector2I) pos, window.position, window.clientBounds().size, edge);
 		window.state.resizing = true;
 
-		// Send an initial resize configure to tell the client it's resizing.
 		window.configure().size(window.clientBounds().size).send();
 	}
-
-	// === Configure lifecycle ===
 
 	override void onWindowConfigureApplied(Window window, Nullable!Vector2I position)
 	{
@@ -309,7 +244,6 @@ class DefaultWindowManager : IWindowManager
 
 	override void onWindowResizeCommitted(Window window, Vector2U newSize)
 	{
-		// Find the seat currently resizing this window
 		foreach (seat; _seatManager.seats)
 		{
 			if (auto si = seat in _seatInteractions)
@@ -324,20 +258,65 @@ class DefaultWindowManager : IWindowManager
 			}
 		}
 
-		// No active resize interaction — just apply the new size at current position
 		_conductor.applyGeometry(window, window.position, newSize);
 	}
 
-	bool isDecorated(Window window)
+	override @property bool visible()
 	{
-		return (window in _decorations) !is null;
+		return true;
 	}
 
-	WindowDecoration getDecoration(Window window)
+	override void draw(ICanvas canvas, OutputManager.ManagedOutput output)
 	{
-		if (auto dec = window in _decorations)
-			return *dec;
-		return null;
+		foreach (layer; EnumMembers!Layer)
+		{
+			foreach (window; _conductor.windows)
+			{
+				if (window.layer != layer) continue;
+				if (!window.mapped || window.state.minimized) continue;
+
+				window.draw(canvas, window.position);
+				drawPopupChain(canvas, window.popup);
+			}
+		}
+
+		_seatManager.drawSoftwareCursors(canvas, output);
+	}
+
+	override void pushDamage(OutputManager om, OutputManager.ManagedOutput output)
+	{
+		foreach (window; _conductor.windows)
+		{
+			if (!window.mapped) continue;
+			window.pushDamage(om, output);
+
+			auto popup = window.popup;
+			while (popup !is null)
+			{
+				if (popup.mapped)
+					popup.pushDamage(om, output);
+				popup = popup.childPopup;
+			}
+		}
+
+		_seatManager.pushCursorDamage(om, output);
+	}
+
+	override void onFramePresented(OutputManager.ManagedOutput output)
+	{
+		foreach (window; _conductor.windows)
+		{
+			if (window.mapped && !window.state.minimized)
+				window.fireAllCallbacks();
+
+			auto popup = window.popup;
+			while (popup !is null)
+			{
+				if (popup.mapped)
+					popup.fireAllCallbacks();
+				popup = popup.childPopup;
+			}
+		}
 	}
 
 	void raiseWindow(Window window)
@@ -393,12 +372,6 @@ class DefaultWindowManager : IWindowManager
 				continue;
 
 			bool hit = window.inputBounds().contains(pos);
-			if (!hit)
-			{
-				if (auto dec = window in _decorations)
-					hit = dec.hitTest(pos) != DecorationHit.None;
-			}
-
 			if (hit && (best is null || window.layer >= best.layer))
 				best = window;
 		}
@@ -484,11 +457,11 @@ class DefaultWindowManager : IWindowManager
 		if (rs is null)
 			return;
 
-		rs.renderer.showDamageOverlay = !rs.renderer.showDamageOverlay;
-		logInfo("Damage overlay: %s", rs.renderer.showDamageOverlay ? "on" : "off");
+		rs.showDamageOverlay = !rs.showDamageOverlay;
+		logInfo("Damage overlay: %s", rs.showDamageOverlay ? "on" : "off");
 
 		_outputManager.damageAll();
-		_scene.scheduleRepaint();
+		_renderSubsystem.scheduleRepaint();
 	}
 
 	private bool handlePointerMotion(Seat seat, Vector2 pos)
@@ -497,7 +470,7 @@ class DefaultWindowManager : IWindowManager
 		pos = _conductor.applyPointerConfine(seat, pos);
 		seat.pointerPosition = pos;
 
-		auto posI = Vector2I(cast(int) pos.x, cast(int) pos.y);
+		auto posI = cast(Vector2I) pos;
 
 		if (auto si = seat in _seatInteractions)
 		{
@@ -537,7 +510,7 @@ class DefaultWindowManager : IWindowManager
 
 	private bool handlePointerButton(Seat seat, uint button, bool pressed)
 	{
-		auto pos = Vector2I(cast(int) seat.pointerPosition.x, cast(int) seat.pointerPosition.y);
+		auto pos = cast(Vector2I) seat.pointerPosition;
 
 		if (!pressed)
 		{
@@ -546,7 +519,7 @@ class DefaultWindowManager : IWindowManager
 				if (si.interaction != InteractionType.None)
 				{
 					si.endInteraction();
-					return false; // let the client know about the button release.
+					return false;
 				}
 			}
 			return false;
@@ -566,46 +539,6 @@ class DefaultWindowManager : IWindowManager
 			return false;
 
 		_conductor.setKeyboardFocus(seat, window);
-
-		if (auto dec = window in _decorations)
-		{
-			auto hit = dec.hitTest(pos);
-
-			final switch (hit)
-			{
-			case DecorationHit.None:
-			case DecorationHit.Content:
-				return false;
-
-			case DecorationHit.Titlebar:
-				onMoveRequest(seat, window);
-				return true;
-
-			case DecorationHit.CloseButton:
-				window.close();
-				return true;
-
-			case DecorationHit.MaximizeButton:
-				toggleMaximize(window);
-				return true;
-
-			case DecorationHit.MinimizeButton:
-				onMinimizeRequest(window);
-				return true;
-
-			case DecorationHit.ResizeTop:
-			case DecorationHit.ResizeBottom:
-			case DecorationHit.ResizeLeft:
-			case DecorationHit.ResizeRight:
-			case DecorationHit.ResizeTopLeft:
-			case DecorationHit.ResizeTopRight:
-			case DecorationHit.ResizeBottomLeft:
-			case DecorationHit.ResizeBottomRight:
-				onResizeRequest(seat, window, hit);
-				return true;
-			}
-		}
-
 		return false;
 	}
 
@@ -614,44 +547,11 @@ class DefaultWindowManager : IWindowManager
 		_conductor.setPointerFocus(seat, view);
 	}
 
-	// === Decoration helpers ===
-
-	private void applyDecoration(Window window)
+	private void drawPopupChain(ICanvas canvas, Popup popup)
 	{
-		if (window in _decorations)
-			return;
-
-		if (window.containerNode.parent !is null)
-			window.containerNode.parent.removeChild(window.containerNode);
-
-		auto decoration = new WindowDecoration(window);
-		_decorations[window] = decoration;
-
-		decoration.clientPosition = window.position;
-		decoration.updateGeometry();
-
-		_scene.layerRoots[window.layer].addChild(decoration.container);
-		_scene.scheduleRepaint();
-	}
-
-	private void removeDecoration(Window window)
-	{
-		auto decPtr = window in _decorations;
-		if (decPtr is null)
-			return;
-
-		auto decoration = *decPtr;
-
-		if (decoration.container.parent !is null)
-			decoration.container.parent.removeChild(decoration.container);
-
-		decoration.container.removeChild(window.containerNode);
-
-		window.containerNode.position = Vector2F(window.position.x, window.position.y);
-		_scene.layerRoots[window.layer].addChild(window.containerNode);
-
-		_decorations.remove(window);
-		_scene.scheduleRepaint();
+		if (popup is null || !popup.mapped) return;
+			popup.draw(canvas, popup.absolutePosition());
+		drawPopupChain(canvas, popup.childPopup);
 	}
 
 	private SeatInteraction getOrCreateSeatInteraction(Seat seat)

@@ -93,16 +93,7 @@ final class WaiXdgPopup : XdgPopup, IXdgRole
 
 		if (surface.currentBuffer)
 		{
-			auto newTexture = surface.currentBuffer.getITexture();
-			if (popup.contentNode.texture !is newTexture)
-			{
-				popup.contentNode.texture = newTexture;
-			}
-
-			auto ss = surface.computeSurfaceState();
-			auto sz = ss.size;
-			popup.contentNode.srcRect = ss.srcRect;
-			popup.contentNode.uvTransform = ss.uvTransform;
+			auto sz = surface.computeSurfaceState().size;
 
 			// Commit pending window geometry, or default to full surface if the client
 			// has never called set_window_geometry.
@@ -129,15 +120,7 @@ final class WaiXdgPopup : XdgPopup, IXdgRole
 					if (!resolveParent())
 						return;
 
-					// Initial map, add popup via WindowManager
 					xdgSurface.wmBase.conductor.addPopup(popup);
-
-					popup.contentNode.frameListener = surface;
-				}
-				else
-				{
-					// Reposition, sync geometry
-					popup.syncGeometry();
 				}
 
 				pendingConfigs.clearAcked();
@@ -148,24 +131,15 @@ final class WaiXdgPopup : XdgPopup, IXdgRole
 					return;
 
 				popup.surfaceSize = sz;
-
 				xdgSurface.wmBase.conductor.addPopup(popup);
-
-				popup.contentNode.frameListener = surface;
 			}
 			else if (sz != popup.surfaceSize)
 			{
 				popup.surfaceSize = sz;
-				popup.syncGeometry();
 			}
 
-			// Apply client-provided damage regions.
-			auto nodeBounds = popup.contentNode.localBounds();
-			foreach (dmg; xdgSurface.pendingDamage.clampedTo(nodeBounds))
-				popup.contentNode.addDamage(dmg);
-
-			if (!xdgSurface.pendingDamage.empty && xdgSurface.wmBase && xdgSurface.wmBase.conductor)
-				xdgSurface.wmBase.conductor.scene.scheduleRepaint();
+			if (xdgSurface.wmBase && xdgSurface.wmBase.conductor)
+				xdgSurface.wmBase.conductor.scheduleRepaint();
 		}
 	}
 

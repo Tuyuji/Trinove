@@ -88,6 +88,8 @@ final class WaiViewport : WpViewport, ISurfaceExtension
 		_surface = null;
 	}
 
+	void onPreConfigure() {}
+
 	override protected void destroy(WlClient cl)
 	{
 		if (_surface !is null)

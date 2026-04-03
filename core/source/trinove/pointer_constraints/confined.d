@@ -64,6 +64,8 @@ class WaiConfinedPointer : ZwpConfinedPointerV1, ISurfaceExtension
 		_constraint = null;
 	}
 
+	void onPreConfigure() {}
+
 	override protected void destroy(WlClient cl)
 	{
 		if (_surface !is null)

@@ -177,7 +177,6 @@ final class WaiXdgToplevel : XdgToplevel, IXdgRole
 {
 	WaiXdgSurface xdgSurface;
 	XdgToplevelWindow window;
-	bool mapped = false;
 
 	this(WaiXdgSurface xdgSurface, WlClient cl, uint id)
 	{
@@ -210,15 +209,7 @@ final class WaiXdgToplevel : XdgToplevel, IXdgRole
 		if (!surface.currentBuffer)
 			return;
 
-		auto newTexture = surface.currentBuffer.getITexture();
-		if (window.contentNode.texture !is newTexture)
-			window.contentNode.texture = newTexture;
-		window.contentNode.visible = true;
-
-		auto ss = surface.computeSurfaceState();
-		auto newSize = ss.size;
-		window.contentNode.srcRect = ss.srcRect;
-		window.contentNode.uvTransform = ss.uvTransform;
+		auto newSize = surface.computeSurfaceState().size;
 
 		// Commit pending window geometry, or default to full surface if the client
 		// has never called set_window_geometry.
@@ -235,18 +226,9 @@ final class WaiXdgToplevel : XdgToplevel, IXdgRole
 		if (!window.handleCommit(newSize))
 			return;
 
-		if (!mapped)
-		{
-			mapped = true;
-			window.contentNode.frameListener = surface;
-		}
-
-		// Apply client-provided damage regions.
-		auto nodeBounds = window.contentNode.localBounds();
-		foreach (dmg; xdgSurface.pendingDamage.clampedTo(nodeBounds))
-			window.contentNode.addDamage(dmg);
-		if (!xdgSurface.pendingDamage.empty)
-			xdgSurface.wmBase.conductor.scene.scheduleRepaint();
+		// Schedule a repaint if we have surface damage
+		if (!surface.rootLocalDamage.empty)
+			xdgSurface.wmBase.conductor.scheduleRepaint();
 	}
 
 	override void onAck(uint serial)
@@ -301,6 +283,8 @@ final class WaiXdgToplevel : XdgToplevel, IXdgRole
 	override void setTitle(WlClient cl, string t)
 	{
 		window.title = t;
+		if (window.mapped)
+			xdgSurface.wmBase.conductor.notifyWindowTitleChanged(window);
 	}
 
 	override void setAppId(WlClient cl, string id)
@@ -455,6 +439,13 @@ final class WaiXdgToplevel : XdgToplevel, IXdgRole
 		}
 
 		sendConfigure(cast(int) sz.x, cast(int) sz.y, &states);
+
+		if (xdgSurface.surface !is null)
+		{
+			foreach (ext; xdgSurface.surface.extensions)
+				ext.onPreConfigure();
+		}
+
 		xdgSurface.sendConfigureEvent();
 
 		if (window.tracingEnabled)

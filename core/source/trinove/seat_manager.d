@@ -11,13 +11,42 @@ import trinove.subsystem;
 import trinove.display_manager;
 import trinove.backend.input;
 import trinove.layer : Layer;
-import trinove.renderer.scene : SceneGraph, RectNode;
+import trinove.renderer.canvas : ICanvas, BufferTransform;
 import trinove.renderer.subsystem : RenderSubsystem;
+import trinove.gpu.itexture : ITexture;
 import trinove.output : CursorPlane;
 import trinove.output_manager : OutputManager;
 import trinove.surface.buffer : IWaylandBuffer;
 import wayland.server;
 import std.algorithm : remove;
+
+// Per-seat software cursor render state.
+private struct SoftwareCursorState
+{
+	ITexture texture;
+	float[4] srcRect = [0.0f, 0.0f, 1.0f, 1.0f];
+	Vector2F position;
+	Vector2F size;
+	bool visible;
+
+	// Pending compositor-space damage rects (max 2: old + new position).
+	private Rect[2] _damage;
+	private int _damageCount;
+
+	void addDamage(Rect r)
+	{
+		if (_damageCount < cast(int) _damage.length)
+			_damage[_damageCount++] = r;
+	}
+
+	Rect[] pendingDamage() { return _damage[0 .. _damageCount]; }
+	void clearDamage() { _damageCount = 0; }
+
+	Rect currentRect() const
+	{
+		return Rect(cast(Vector2I) position, cast(Vector2U) size);
+	}
+}
 
 // Manages all seats in the compositor.
 //
@@ -81,7 +110,7 @@ class SeatManager : ISubsystem
 
 		// Cursor management
 		Seat _hwCursorOwner; // Only one seat can use HW cursor
-		RectNode[Seat] _cursorNodes; // Per-seat software cursor scene nodes
+		SoftwareCursorState[Seat] _swCursorStates;
 	}
 
 	@property Seat defaultSeat()
@@ -283,7 +312,7 @@ class SeatManager : ISubsystem
 		if (outputMgr is null)
 			return;
 
-		auto posI = Vector2I(cast(int) pos.x, cast(int) pos.y);
+		auto posI = cast(Vector2I) pos;
 		foreach (ref mo; outputMgr.outputs)
 		{
 			auto plane = mo.output.cursorPlane();
@@ -294,39 +323,42 @@ class SeatManager : ISubsystem
 
 	private void updateSoftwareCursorImage(Seat seat)
 	{
-		auto cursorNode = getOrCreateCursorNode(seat);
-		if (cursorNode is null)
-			return;
+		if (!(seat in _swCursorStates))
+			_swCursorStates[seat] = SoftwareCursorState.init;
+		auto state = seat in _swCursorStates;
 
 		auto pos = seat.pointerPosition;
 		if (seat.hasClientRequestedCursor())
 		{
-			auto state = seat.cursorState;
-			if (state.surface !is null && state.surface.currentBuffer !is null)
+			auto cs = seat.cursorState;
+			if (cs.surface !is null && cs.surface.currentBuffer !is null)
 			{
-				auto buffer = state.surface.currentBuffer;
+				auto buffer = cs.surface.currentBuffer;
 				auto imgSize = buffer.getImageSize();
 
-				cursorNode.texture = buffer.getITexture();
-				cursorNode.size = Vector2F(imgSize.x, imgSize.y);
-				cursorNode.visible = true;
-				cursorNode.position = Vector2F(cast(int) pos.x - state.hotspot.x, cast(int) pos.y - state.hotspot.y);
-				cursorNode.addFullDamage();
+				if (state.visible) state.addDamage(state.currentRect());
+				state.texture  = buffer.getITexture();
+				state.srcRect  = [0.0f, 0.0f, 1.0f, 1.0f];
+				state.size     = Vector2F(imgSize.x, imgSize.y);
+				state.visible  = true;
+				state.position = Vector2F(cast(int) pos.x - cs.hotspot.x, cast(int) pos.y - cs.hotspot.y);
+				state.addDamage(state.currentRect());
 				scheduleSceneRepaint();
 				return;
 			}
-			else if (state.shapeKey.length > 0)
+			else if (cs.shapeKey.length > 0)
 			{
 				if (auto img = seat.resolveThemeCursor())
 				{
 					if (img.texture !is null)
 					{
-						cursorNode.texture = img.texture;
-						cursorNode.srcRect = img.frameUVRect(0);
-						cursorNode.size = Vector2F(img.frameSize.x, img.frameSize.y);
-						cursorNode.visible = true;
-						cursorNode.position = Vector2F(cast(int) pos.x - img.hotspot.x, cast(int) pos.y - img.hotspot.y);
-						cursorNode.addFullDamage();
+						if (state.visible) state.addDamage(state.currentRect());
+						state.texture  = img.texture;
+						state.srcRect  = img.frameUVRect(0);
+						state.size     = Vector2F(img.frameSize.x, img.frameSize.y);
+						state.visible  = true;
+						state.position = Vector2F(cast(int) pos.x - img.hotspot.x, cast(int) pos.y - img.hotspot.y);
+						state.addDamage(state.currentRect());
 						scheduleSceneRepaint();
 						return;
 					}
@@ -338,66 +370,41 @@ class SeatManager : ISubsystem
 		{
 			if (img.texture !is null)
 			{
-				cursorNode.texture = img.texture;
-				cursorNode.srcRect = img.frameUVRect(0);
-				cursorNode.size = Vector2F(img.frameSize.x, img.frameSize.y);
-				cursorNode.visible = true;
-				cursorNode.position = Vector2F(cast(int) pos.x - img.hotspot.x, cast(int) pos.y - img.hotspot.y);
-				cursorNode.addFullDamage();
+				if (state.visible) state.addDamage(state.currentRect());
+				state.texture  = img.texture;
+				state.srcRect  = img.frameUVRect(0);
+				state.size     = Vector2F(img.frameSize.x, img.frameSize.y);
+				state.visible  = true;
+				state.position = Vector2F(cast(int) pos.x - img.hotspot.x, cast(int) pos.y - img.hotspot.y);
+				state.addDamage(state.currentRect());
 				scheduleSceneRepaint();
 				return;
 			}
 		}
 
-		if (cursorNode.visible)
+		if (state.visible)
 		{
-			damageCursorOldPosition(cursorNode);
-			cursorNode.visible = false;
+			state.addDamage(state.currentRect());
+			state.visible = false;
 			scheduleSceneRepaint();
 		}
 	}
 
 	private void updateSoftwareCursorPosition(Seat seat, Vector2 pos)
 	{
-		auto cursorNode = getOrCreateCursorNode(seat);
-		if (cursorNode is null || !cursorNode.visible)
+		auto state = seat in _swCursorStates;
+		if (state is null || !state.visible)
 			return;
 
 		auto hotspot = seat.activeCursorHotspot();
 		auto newPos = Vector2F(cast(int) pos.x - hotspot.x, cast(int) pos.y - hotspot.y);
 
-		if (cursorNode.position.x != newPos.x || cursorNode.position.y != newPos.y)
+		if (state.position.x != newPos.x || state.position.y != newPos.y)
 		{
-			damageCursorOldPosition(cursorNode);
-			cursorNode.position = newPos;
-			cursorNode.addFullDamage();
+			state.addDamage(state.currentRect()); // old position
+			state.position = newPos;
+			state.addDamage(state.currentRect()); // new position
 			scheduleSceneRepaint();
-		}
-	}
-
-	private RectNode getOrCreateCursorNode(Seat seat)
-	{
-		if (auto p = seat in _cursorNodes)
-			return *p;
-
-		auto renderSub = SubsystemManager.getByService!RenderSubsystem(Services.RenderSubsystem);
-		if (renderSub is null)
-			return null;
-
-		auto cursorNode = new RectNode();
-		cursorNode.visible = false;
-		renderSub.scene.layerRoots[Layer.Cursor].addChild(cursorNode);
-		_cursorNodes[seat] = cursorNode;
-		return cursorNode;
-	}
-
-	// Damage the area where the cursor currently sits (before moving/hiding it).
-	private void damageCursorOldPosition(RectNode cursorNode)
-	{
-		if (cursorNode.parent !is null)
-		{
-			cursorNode.parent.addDamage(Rect(cast(int) cursorNode.position.x, cast(int) cursorNode.position.y,
-					cast(uint) cursorNode.size.x, cast(uint) cursorNode.size.y));
 		}
 	}
 
@@ -405,7 +412,32 @@ class SeatManager : ISubsystem
 	{
 		auto renderSub = SubsystemManager.getByService!RenderSubsystem(Services.RenderSubsystem);
 		if (renderSub !is null)
-			renderSub.scene.scheduleRepaint();
+			renderSub.scheduleRepaint();
+	}
+
+	// Draw all visible software cursors onto the canvas.
+	// Called by the WM at the end of its draw() pass to keep cursors on top.
+	void drawSoftwareCursors(ICanvas canvas, OutputManager.ManagedOutput output)
+	{
+		foreach (ref state; _swCursorStates.byValue())
+		{
+			if (!state.visible || state.texture is null)
+				continue;
+			canvas.drawTexture(state.position, state.size, state.texture,
+				state.srcRect, BufferTransform.normal, [1.0f, 1.0f, 1.0f, 1.0f], 1.0f);
+		}
+	}
+
+	// Push accumulated cursor damage to the output manager.
+	// Called by the WM at the end of its pushDamage() pass.
+	void pushCursorDamage(OutputManager om, OutputManager.ManagedOutput output)
+	{
+		foreach (ref state; _swCursorStates.byValue())
+		{
+			foreach (r; state.pendingDamage())
+				om.addDamage(r);
+			state.clearDamage();
+		}
 	}
 
 	private bool hasAnyCursorPlane()

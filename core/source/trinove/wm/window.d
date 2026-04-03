@@ -175,12 +175,6 @@ abstract class Window : View
 	{
 	}
 
-	// Update content node visibility based on state.
-	override void syncVisibility()
-	{
-		containerNode.visible = mapped && !state.minimized;
-	}
-
 	override WaiSurface getSurface()
 	{
 		return null;

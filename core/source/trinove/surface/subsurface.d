@@ -6,12 +6,11 @@ module trinove.surface.subsurface;
 import wayland.server.protocol;
 import trinove.util : onDestroyCallDestroy;
 import wayland.server;
-import trinove.surface.surface : WaiSurface;
+import trinove.surface.surface : WaiSurface, ResourceList;
 import trinove.surface.role : ISurfaceRole;
 import trinove.math;
 import trinove.math.rect : Rect;
 import trinove.damage : DamageList;
-import trinove.renderer.scene : RectNode, SceneNode;
 import trinove.log;
 import std.algorithm : remove, countUntil;
 
@@ -20,16 +19,12 @@ final class WaiSubsurface : WlSubsurface, ISurfaceRole
 	WaiSurface surface;
 	WaiSurface parent;
 
-	// Container node that groups contentNode and any nested subsurface containers.
-	// This is what gets reordered in the parent's container children.
-	SceneNode containerNode;
-	RectNode contentNode;
-
 	private Vector2I _pendingPosition;
 	private Vector2I _currentPosition;
 	private bool _syncMode = true;
 	private bool _hasCachedState = false;
 	private DamageList _cachedDamage = DamageList.init;
+	private ResourceList _cachedFrameCallbacks;
 
 	private enum ZOrderOp
 	{
@@ -48,17 +43,6 @@ final class WaiSubsurface : WlSubsurface, ISurfaceRole
 		surface.role = this;
 		surface.subsurfaceParent = parent;
 		parent.addSubsurfaceChild(this);
-
-		containerNode = new SceneNode();
-		containerNode.visible = true;
-		contentNode = new RectNode();
-		contentNode.visible = false;
-		containerNode.addChild(contentNode);
-
-		// Attach to parent's container node in the scene graph
-		auto parentNode = resolveParentContainerNode();
-		if (parentNode !is null)
-			parentNode.addChild(containerNode);
 
 		super(cl, WlSubsurface.ver, id);
 		mixin(onDestroyCallDestroy);
@@ -82,6 +66,7 @@ final class WaiSubsurface : WlSubsurface, ISurfaceRole
 	{
 		if (isEffectivelySync())
 		{
+			_cachedFrameCallbacks.takeAll(surface.pendingFrameCallbacks);
 			_hasCachedState = true;
 		}
 		else
@@ -117,7 +102,6 @@ final class WaiSubsurface : WlSubsurface, ISurfaceRole
 	void parentCommitted()
 	{
 		_currentPosition = _pendingPosition;
-		containerNode.position = Vector2F(_currentPosition.x, _currentPosition.y);
 
 		applyPendingZOrder();
 
@@ -133,9 +117,6 @@ final class WaiSubsurface : WlSubsurface, ISurfaceRole
 
 	void onParentDestroyed()
 	{
-		containerNode.visible = false;
-		if (containerNode.parent !is null)
-			containerNode.parent.removeChild(containerNode);
 		parent = null;
 		if (surface !is null)
 			surface.subsurfaceParent = null;
@@ -145,9 +126,6 @@ final class WaiSubsurface : WlSubsurface, ISurfaceRole
 
 	override protected void destroy(WlClient cl)
 	{
-		if (containerNode.parent !is null)
-			containerNode.parent.removeChild(containerNode);
-
 		if (parent !is null)
 			parent.removeSubsurfaceChild(this);
 
@@ -160,7 +138,7 @@ final class WaiSubsurface : WlSubsurface, ISurfaceRole
 		_cachedDamage.release();
 
 		if (surface !is null && surface.compositor !is null)
-			surface.compositor.scene.scheduleRepaint();
+			surface.compositor.scheduleRepaint();
 
 		parent = null;
 		surface = null;
@@ -225,6 +203,32 @@ final class WaiSubsurface : WlSubsurface, ISurfaceRole
 
 	// === Internal helpers ===
 
+	// Walk up to the topmost non-subsurface ancestor.
+	private WaiSurface findRootSurface()
+	{
+		auto s = surface;
+		while (s.subsurfaceParent !is null)
+			s = s.subsurfaceParent;
+		return s;
+	}
+
+	// Accumulate position offsets from this subsurface up to but not including
+	// the root surface, giving the subsurface's position in root-surface-local coords.
+	private Vector2I offsetToRoot()
+	{
+		Vector2I offset = _currentPosition;
+		auto p = parent;
+		while (p !is null && p.subsurfaceParent !is null)
+		{
+			auto ps = cast(WaiSubsurface) p.role;
+			if (ps is null)
+				break;
+			offset += ps._currentPosition;
+			p = ps.parent;
+		}
+		return offset;
+	}
+
 	private void applyCachedState()
 	{
 		_hasCachedState = false;
@@ -232,83 +236,21 @@ final class WaiSubsurface : WlSubsurface, ISurfaceRole
 		if (surface is null)
 			return;
 
-		auto buf = surface.currentBuffer;
-		if (buf !is null)
+		surface.frameCallbacks.takeAll(_cachedFrameCallbacks);
+
+		// Propagate damage to root surface in root-local coordinates.
+		auto root = findRootSurface();
+		if (surface.currentBuffer !is null)
 		{
-			auto newTexture = buf.getITexture();
-			if (contentNode.texture !is newTexture)
-				contentNode.texture = newTexture;
-
-			auto ss = surface.computeSurfaceState();
-			contentNode.size = Vector2F(ss.size.x, ss.size.y);
-			contentNode.srcRect = ss.srcRect;
-			contentNode.uvTransform = ss.uvTransform;
-			contentNode.visible = true;
-
-			foreach (dmg; _cachedDamage.clampedTo(contentNode.localBounds()))
-				contentNode.addDamage(dmg);
-
-			contentNode.frameListener = surface;
-		}
-		else
-		{
-			contentNode.visible = false;
+			auto off = offsetToRoot();
+			foreach (r; _cachedDamage.rects)
+				root.rootLocalDamage.add(Rect(r.position.x + off.x, r.position.y + off.y, r.size.x, r.size.y));
 		}
 
 		_cachedDamage.clear();
 
 		if (surface.compositor !is null)
-			surface.compositor.scene.scheduleRepaint();
-	}
-
-	// Resolve the parent surface's container SceneNode via its role chain.
-	private SceneNode resolveParentContainerNode()
-	{
-		if (parent is null || parent.role is null)
-			return null;
-
-		import trinove.shell.surface : WaiXdgSurface;
-
-		if (auto xdgSurf = cast(WaiXdgSurface) parent.role)
-		{
-			import trinove.shell.toplevel : WaiXdgToplevel;
-			import trinove.shell.popup : WaiXdgPopup;
-
-			if (auto tl = cast(WaiXdgToplevel) xdgSurf.xdgRole)
-				return tl.window.containerNode;
-			if (auto pop = cast(WaiXdgPopup) xdgSurf.xdgRole)
-				return pop.popup.containerNode;
-		}
-
-		if (auto parentSub = cast(WaiSubsurface) parent.role)
-			return parentSub.containerNode;
-
-		return null;
-	}
-
-	// Resolve the parent surface's content RectNode (for z-order placement relative to parent)
-	private SceneNode resolveParentContentNode()
-	{
-		if (parent is null || parent.role is null)
-			return null;
-
-		import trinove.shell.surface : WaiXdgSurface;
-
-		if (auto xdgSurf = cast(WaiXdgSurface) parent.role)
-		{
-			import trinove.shell.toplevel : WaiXdgToplevel;
-			import trinove.shell.popup : WaiXdgPopup;
-
-			if (auto tl = cast(WaiXdgToplevel) xdgSurf.xdgRole)
-				return tl.window.contentNode;
-			if (auto pop = cast(WaiXdgPopup) xdgSurf.xdgRole)
-				return pop.popup.contentNode;
-		}
-
-		if (auto parentSub = cast(WaiSubsurface) parent.role)
-			return parentSub.contentNode;
-
-		return null;
+			surface.compositor.scheduleRepaint();
 	}
 
 	private bool isValidSibling(WaiSurface sibling)
@@ -336,68 +278,10 @@ final class WaiSubsurface : WlSubsurface, ISurfaceRole
 			_pendingZSibling = null;
 		}
 
-		auto parentContainer = containerNode.parent;
-		if (parentContainer is null || parent is null)
-			return;
-
-		if (_pendingZSibling is parent)
-		{
-			// Place relative to the parent surface's content node.
-			// The parent's containerNode holds: [subsurfaces_below..., contentNode, subsurfaces_above...]
-			// "above parent" = just after contentNode, "below parent" = just before contentNode.
-			auto parentContentNode = resolveParentContentNode();
-			reorderInSceneChildren(parentContainer, _pendingZOp == ZOrderOp.placeAbove, parentContentNode);
-		}
-		else
-		{
-			// Find sibling subsurface
-			WaiSubsurface sibSub;
-			foreach (child; parent.subsurfaceChildren)
-			{
-				if (child.surface is _pendingZSibling)
-				{
-					sibSub = child;
-					break;
-				}
-			}
-			if (sibSub is null)
-				return;
-
-			reorderInSceneChildren(parentContainer, _pendingZOp == ZOrderOp.placeAbove, sibSub.containerNode);
-		}
-
-		// Also reorder in the subsurfaceChildren array to keep stacking consistent
 		reorderInSubsurfaceList();
 	}
 
-	// Reorder this subsurface's containerNode relative to a sibling in the parent container's children.
-	// siblingNode is either the parent's contentNode (for place relative to parent) or
-	// another subsurface's containerNode (for place relative to sibling).
-	private void reorderInSceneChildren(SceneNode parentContainer, bool above, SceneNode siblingNode)
-	{
-		parentContainer.children = parentContainer.children.remove!(c => c is containerNode);
-
-		if (siblingNode is null)
-		{
-			// Fallback, just place at beginning
-			parentContainer.children = [cast(SceneNode) containerNode] ~ parentContainer.children;
-		}
-		else
-		{
-			auto idx = parentContainer.children.countUntil!(c => c is siblingNode);
-			if (idx < 0)
-			{
-				parentContainer.children ~= containerNode;
-				return;
-			}
-
-			auto insertAt = above ? idx + 1 : idx;
-			parentContainer.children = parentContainer.children[0 .. insertAt] ~ cast(
-					SceneNode) containerNode ~ parentContainer.children[insertAt .. $];
-		}
-	}
-
-	// Reorder this subsurface in parent.subsurfaceChildren to match scene graph order.
+	// Reorder this subsurface in parent.subsurfaceChildren to match z-order.
 	private void reorderInSubsurfaceList()
 	{
 		if (parent is null)

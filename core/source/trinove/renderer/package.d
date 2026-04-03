@@ -3,6 +3,4 @@
 
 module trinove.renderer;
 
-public import trinove.renderer.scene;
-public import trinove.renderer.renderer;
 public import trinove.renderer.subsystem;

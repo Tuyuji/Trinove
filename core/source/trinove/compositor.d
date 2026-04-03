@@ -17,6 +17,7 @@ import trinove.seat_manager;
 import trinove.cursor;
 import trinove.cursor_shape : WaiCursorShapeManager;
 import trinove.shell.wm_base;
+import trinove.shell.xdg_decoration : WaiXdgDecorationManager;
 import trinove.relative_pointer;
 import trinove.pointer_constraints;
 import trinove.viewporter;
@@ -39,6 +40,7 @@ class WaiCompositor : WlCompositor, ISubsystem
 		WindowConductor _conductor;
 		VideoBackend _videoBackend;
 		WaiXdgWmBase _xdgWmBase;
+		WaiXdgDecorationManager _xdgDecorationManager;
 		WaiLinuxDmabuf _linuxDmabuf;
 		WaiRelativePointerManager _relativePointerManager;
 		WaiPointerConstraints _pointerConstraints;
@@ -130,6 +132,7 @@ class WaiCompositor : WlCompositor, ISubsystem
 		}
 
 		_xdgWmBase = new WaiXdgWmBase(_conductor);
+		_xdgDecorationManager = new WaiXdgDecorationManager(d, _conductor);
 		_linuxDmabuf = new WaiLinuxDmabuf(d);
 		_relativePointerManager = new WaiRelativePointerManager(d);
 		_pointerConstraints = new WaiPointerConstraints(d);
@@ -144,7 +147,7 @@ class WaiCompositor : WlCompositor, ISubsystem
 
 		// Clear screen
 		_outputManager.damageAll();
-		_renderSubsystem.scene.scheduleRepaint();
+		_renderSubsystem.scheduleRepaint();
 
 		logInfo("Compositor initialized");
 	}
@@ -167,14 +170,9 @@ class WaiCompositor : WlCompositor, ISubsystem
 		return _startTime;
 	}
 
-	@property SceneGraph scene()
+	void scheduleRepaint()
 	{
-		return _renderSubsystem.scene;
-	}
-
-	@property Renderer renderer()
-	{
-		return _renderSubsystem.renderer;
+		_renderSubsystem.scheduleRepaint();
 	}
 
 	@property RenderSubsystem renderSubsystem()

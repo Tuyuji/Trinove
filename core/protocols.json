@@ -40,6 +40,12 @@
             "xml": "protocols/linux-dmabuf-v1.xml",
             "module": "trinove.protocols.linux_dmabuf",
             "output": "source/trinove/protocols/linux_dmabuf.d"
+        },
+        {
+            "xml": "protocols/xdg-decoration-unstable-v1.xml",
+            "module": "trinove.protocols.xdg_decoration_v1",
+            "output": "source/trinove/protocols/xdg_decoration_v1.d",
+            "extra_imports": ["trinove.protocols.xdg_shell : XdgToplevel"]
         }
     ]
 }

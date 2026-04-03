@@ -9,11 +9,12 @@ import trinove.wm.popup : Popup;
 import trinove.wm.decoration : DecorationHit;
 import trinove.wm.conductor : WindowConductor;
 import trinove.output_manager : OutputManager;
+import trinove.renderer.canvas : ICanvas, IRenderEntry;
 import trinove.math : Vector2I, Vector2U;
 import trinove.seat : Seat;
 import std.typecons : Nullable;
 
-interface IWindowManager
+interface IWindowManager : IRenderEntry
 {
 	@property string name();
 
@@ -28,13 +29,11 @@ interface IWindowManager
 	// Implementations should tear down any resources they own (decorations, scene nodes, etc.).
 	void shutdown();
 
-	// A new toplevel window has been mapped. WM should place it, build its
-	// scene tree (via window.containerNode / contentNode), and set focus.
+	// A new toplevel window has been mapped. WM should place it and set focus.
 	void onWindowAdded(Window window);
 
-	// A toplevel window is being removed. WM should tear down its scene nodes
-	// and decorations. The window is still in the conductor's list at this
-	// point, it is removed after this call returns.
+	// A toplevel window is being removed. WM should tear down decorations.
+	// The window is still in the conductor's list at this point.
 	void onWindowRemoved(Window window);
 
 	void onPopupAdded(Popup popup);

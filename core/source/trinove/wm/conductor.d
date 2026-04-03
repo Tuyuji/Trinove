@@ -7,7 +7,6 @@ import trinove.subsystem;
 import trinove.renderer : RenderSubsystem;
 import trinove.math;
 import trinove.layer;
-import trinove.renderer.scene;
 import trinove.wm.view : WmCapabilityFlags;
 import trinove.backend.input;
 import trinove.seat;
@@ -34,7 +33,7 @@ class WindowConductor : ISubsystem
 	{
 		IWindowManager _manager;
 		Window[] _windows;
-		SceneGraph _scene;
+		RenderSubsystem _renderSubsystem;
 		SeatManager _seatManager;
 		OutputManager _outputManager;
 	}
@@ -63,7 +62,7 @@ class WindowConductor : ISubsystem
 	override void initialize()
 	{
 		auto render = SubsystemManager.getByService!RenderSubsystem(Services.RenderSubsystem);
-		_scene = render.scene;
+		_renderSubsystem = render;
 		_seatManager = SubsystemManager.getByService!SeatManager(Services.SeatManager);
 		_outputManager = SubsystemManager.getByService!OutputManager(Services.OutputManager);
 		logInfo("WindowConductor initialized");
@@ -77,17 +76,14 @@ class WindowConductor : ISubsystem
 	// Replace the active window manager.
 	void setWindowManager(IWindowManager mgr)
 	{
-		foreach (w; _windows)
-		{
-			if (w.containerNode.parent !is null)
-				w.containerNode.parent.removeChild(w.containerNode);
-			_scene.layerRoots[w.layer].addChild(w.containerNode);
-		}
+		if (_manager !is null)
+			_renderSubsystem.removeEntry(_manager);
 
 		_manager = mgr;
 
 		if (_manager !is null)
 		{
+			_renderSubsystem.addEntry(_manager);
 			_manager.startup(this);
 			auto caps = _manager.wmCapabilities;
 			foreach (w; _windows)
@@ -98,9 +94,9 @@ class WindowConductor : ISubsystem
 		}
 	}
 
-	@property SceneGraph scene()
+	@property RenderSubsystem renderSubsystem()
 	{
-		return _scene;
+		return _renderSubsystem;
 	}
 
 	@property SeatManager seatManager()
@@ -128,6 +124,11 @@ class WindowConductor : ISubsystem
 		return _manager !is null ? _manager.wmCapabilities : WmCapabilityFlags.none;
 	}
 
+	void scheduleRepaint()
+	{
+		_renderSubsystem.scheduleRepaint();
+	}
+
 	void addWindow(Window window)
 	{
 		assert(_manager !is null, "No IWindowManager set. Call setWindowManager before mapping windows");
@@ -144,6 +145,8 @@ class WindowConductor : ISubsystem
 			if (seat.pointerFocus.view is window)
 				setPointerFocus(seat, null);
 		}
+
+		damageCurrentBounds(window);
 
 		if (_manager !is null)
 			_manager.onWindowRemoved(window);
@@ -163,7 +166,7 @@ class WindowConductor : ISubsystem
 				setKeyboardFocus(seat, _windows[$ - 1]);
 		}
 
-		_scene.scheduleRepaint();
+		_renderSubsystem.scheduleRepaint();
 	}
 
 	void setWindowParent(Window window, Window parent)
@@ -189,14 +192,10 @@ class WindowConductor : ISubsystem
 		else
 			popup.parentWindow.popup = popup;
 
-		popup.syncGeometry();
-		popup.containerNode.visible = true;
-		_scene.layerRoots[popup.parentWindow.layer].addChild(popup.containerNode);
-
 		if (_manager !is null)
 			_manager.onPopupAdded(popup);
 
-		_scene.scheduleRepaint();
+		_renderSubsystem.scheduleRepaint();
 	}
 
 	void removePopup(Popup popup)
@@ -204,13 +203,11 @@ class WindowConductor : ISubsystem
 		if (!popup.mapped)
 			return;
 
+		_outputManager.addDamage(Rect(popup.absolutePosition(), popup.surfaceSize));
+
 		if (_manager !is null)
 			_manager.onPopupRemoved(popup);
 
-		if (popup.containerNode.parent !is null)
-			popup.containerNode.parent.removeChild(popup.containerNode);
-
-		popup.containerNode.visible = false;
 		popup.mapped = false;
 
 		if (popup.parentPopup !is null)
@@ -230,7 +227,7 @@ class WindowConductor : ISubsystem
 		popup.parentPopup = null;
 		popup.childPopup = null;
 
-		_scene.scheduleRepaint();
+		_renderSubsystem.scheduleRepaint();
 	}
 
 	void requestMaximize(Window w)
@@ -261,6 +258,13 @@ class WindowConductor : ISubsystem
 	{
 		if (_manager !is null)
 			_manager.onMinimizeRequest(w);
+	}
+
+	// Notify the WM that the window title or app-id changed.
+	void notifyWindowTitleChanged(Window window)
+	{
+		if (_manager !is null)
+			_manager.onWindowStateChanged(window);
 	}
 
 	// Notify the WM of a client decoration preference.
@@ -299,7 +303,7 @@ class WindowConductor : ISubsystem
 		if (_manager !is null)
 			_manager.onWindowConfigureApplied(window, position);
 
-		_scene.scheduleRepaint();
+		_renderSubsystem.scheduleRepaint();
 	}
 
 	void notifyWindowResizeCommitted(Window window, Vector2U newSize)
@@ -331,7 +335,7 @@ class WindowConductor : ISubsystem
 				_manager.onWindowFocusChanged(newWindow, true);
 		}
 
-		_scene.scheduleRepaint();
+		_renderSubsystem.scheduleRepaint();
 	}
 
 	void setPointerFocus(Seat seat, View view)
@@ -349,10 +353,10 @@ class WindowConductor : ISubsystem
 			return;
 
 		auto cursorF = seat.pointerPosition;
-		auto cursor = Vector2I(cast(int) cursorF.x, cast(int) cursorF.y);
+		auto cursor = cast(Vector2I) cursorF;
 		auto origin = view.contentOrigin();
 		auto ss = mainSurface.computeSurfaceState();
-		auto hit = findSurfaceAt(mainSurface, origin, Vector2I(cast(int) ss.size.x, cast(int) ss.size.y), cursor);
+		auto hit = findSurfaceAt(mainSurface, origin, cast(Vector2I) ss.size, cursor);
 
 		seat.pointerFocus = PointerFocus(view, hit.subsurface);
 		seat.setPointerFocusSurface(seat.pointerFocus.surface, hit.local.x, hit.local.y);
@@ -372,7 +376,7 @@ class WindowConductor : ISubsystem
 		if (_manager !is null)
 			_manager.onWindowStateChanged(window);
 
-		_scene.scheduleRepaint();
+		_renderSubsystem.scheduleRepaint();
 	}
 
 	void moveWindow(Window window, Vector2I newPos)
@@ -383,7 +387,7 @@ class WindowConductor : ISubsystem
 		if (_manager !is null)
 			_manager.onWindowStateChanged(window);
 
-		_scene.scheduleRepaint();
+		_renderSubsystem.scheduleRepaint();
 	}
 
 	void damageCurrentBounds(Window window)
@@ -396,16 +400,12 @@ class WindowConductor : ISubsystem
 		if (window.layer == newLayer)
 			return;
 
-		if (window.containerNode.parent !is null)
-			window.containerNode.parent.removeChild(window.containerNode);
-
 		window.layer = newLayer;
-		_scene.layerRoots[newLayer].addChild(window.containerNode);
 
 		if (_manager !is null)
 			_manager.onWindowStateChanged(window);
 
-		_scene.scheduleRepaint();
+		_renderSubsystem.scheduleRepaint();
 	}
 
 	void reorderWindowToTop(Window window)

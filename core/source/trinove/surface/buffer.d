@@ -68,22 +68,26 @@ class CpuBuffer : WlBuffer, IWaylandBuffer
 	WlShm.Format format;
 
 	Texture2D _texture;
-	bool _destroyed = false;
+	bool _destroyed : 1; // client sent wl_buffer.destroy
+	bool _released  : 1; // compositor called release()
 
 	this(wayland.native.server.wl_resource* natRes)
 	{
+		_destroyed = false;
+		_released = false;
 		super(natRes);
 		mixin(onDestroyCallDestroy);
 	}
 
 	override void destroy(WlClient cl)
 	{
-		if (_texture !is null)
+		_destroyed = true;
+		// If the compositor already released this buffer then we can free the texture now.
+		if (_released && _texture !is null)
 		{
 			releaseCpuTex(_texture);
 			_texture = null;
 		}
-		_destroyed = true;
 	}
 
 	void fetch()
@@ -127,8 +131,16 @@ class CpuBuffer : WlBuffer, IWaylandBuffer
 
 	void release()
 	{
+		_released = true;
 		if (!_destroyed)
 			sendRelease();
+
+		// We can free it now since the compositor is done with it.
+		if (_texture !is null)
+		{
+			releaseCpuTex(_texture);
+			_texture = null;
+		}
 	}
 
 	ITexture getITexture()

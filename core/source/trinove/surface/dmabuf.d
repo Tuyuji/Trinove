@@ -533,7 +533,8 @@ class DmaBufBuffer : WlBuffer, IWaylandBuffer
 		uint _width;
 		uint _height;
 		ZwpLinuxBufferParamsV1.Flags _flags;
-		bool _destroyed;
+		bool _destroyed    : 1; // client sent wl_buffer.destroy
+		bool _accessActive : 1; // between fetch() (beginAccess) and release() (endAccess)
 
 		SharedTexture2D _sharedTexture;
 	}
@@ -583,8 +584,7 @@ class DmaBufBuffer : WlBuffer, IWaylandBuffer
 		if (_destroyed)
 			return;
 		_destroyed = true;
-
-		if (_sharedTexture !is null)
+		if (!_accessActive && _sharedTexture !is null)
 		{
 			_sharedTexture.destroy();
 			_sharedTexture = null;
@@ -604,23 +604,31 @@ class DmaBufBuffer : WlBuffer, IWaylandBuffer
 
 	void fetch()
 	{
-		// Begin access for synchronization
 		if (_sharedTexture !is null)
 		{
 			_sharedTexture.beginAccess(_sharedTexture.device);
+			_accessActive = true;
 		}
 	}
 
 	void release()
 	{
-		// End access and release to client
+		_accessActive = false;
 		if (_sharedTexture !is null)
-		{
 			_sharedTexture.endAccess(_sharedTexture.device);
-		}
 
-		if (!_destroyed)
+		if (_destroyed)
+		{
+			if (_sharedTexture !is null)
+			{
+				_sharedTexture.destroy();
+				_sharedTexture = null;
+			}
+		}
+		else
+		{
 			sendRelease();
+		}
 	}
 
 	const(ubyte)[] getPixelData()

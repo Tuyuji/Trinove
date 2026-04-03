@@ -12,8 +12,7 @@ import trinove.shell.surface;
 import trinove.math : Vector2I, Vector2U;
 import trinove.math.rect : Rect;
 import trinove.damage : DamageList;
-import trinove.renderer.scene : IFrameListener, BufferTransform;
-import trinove.output_manager : OutputManager;
+import trinove.renderer.canvas : BufferTransform;
 import trinove.subsystem : Services;
 import trinove.debug_.protocol_tracer : ProtocolTracer;
 import trinove.util : onDestroyCallDestroy;
@@ -33,7 +32,7 @@ enum InputRegionMode : ubyte
 	explicit, // Explicit region with rects. Check inputRegion for hit
 }
 
-final class WaiSurface : WlSurface, IFrameListener
+final class WaiSurface : WlSurface
 {
 	WaiCompositor compositor;
 
@@ -62,6 +61,13 @@ final class WaiSurface : WlSurface, IFrameListener
 
 	// Back-reference to parent surface if this surface is a subsurface child.
 	WaiSurface subsurfaceParent;
+
+	// Accumulated damage in root-surface-local coordinates.
+	DamageList rootLocalDamage;
+
+	// Pending damage staged by wl_surface.damage / wl_surface.damage_buffer before commit.
+	// Flushed into rootLocalDamage on wl_surface.commit.
+	private DamageList _pendingRootDamage;
 
 	private ProtocolTracer _tracer;
 
@@ -198,10 +204,16 @@ final class WaiSurface : WlSurface, IFrameListener
 			role = null;
 		}
 
-		currentBuffer = null;
+		if (currentBuffer !is null)
+		{
+			currentBuffer.release();
+			currentBuffer = null;
+		}
 		pendingBuffer = null;
 		pendingFrameCallbacks.clear();
 		frameCallbacks.clear();
+		rootLocalDamage.release();
+		_pendingRootDamage.release();
 	}
 
 	override void attach(WlClient cl, WlBuffer buffer, int x, int y)
@@ -212,10 +224,11 @@ final class WaiSurface : WlSurface, IFrameListener
 
 	override void damage(WlClient cl, int x, int y, int width, int height)
 	{
-		if (role is null)
-			return;
+		if (width > 0 && height > 0 && subsurfaceParent is null)
+			_pendingRootDamage.add(Rect(x, y, cast(uint) width, cast(uint) height));
 
-		role.onDamage(Rect(x, y, cast(uint) width, cast(uint) height));
+		if (role !is null)
+			role.onDamage(Rect(x, y, cast(uint) width, cast(uint) height));
 	}
 
 	override void frame(WlClient cl, uint callback)
@@ -256,7 +269,6 @@ final class WaiSurface : WlSurface, IFrameListener
 			pendingBufferAttached = false;
 		}
 
-		frameCallbacks.takeAll(pendingFrameCallbacks);
 		bufferScale = _pendingBufferScale;
 		bufferTransform = _pendingBufferTransform;
 
@@ -281,11 +293,18 @@ final class WaiSurface : WlSurface, IFrameListener
 			pendingInputRegion = null;
 		}
 
+		if (subsurfaceParent is null)
+			rootLocalDamage.swapWith(_pendingRootDamage);
+
 		foreach (ext; extensions)
 			ext.onCommit();
 
 		if (role !is null)
 			role.onCommit();
+
+		// Move frame callbacks after role.onCommit() so sync subsurfaces can steal
+		// them into their cached state before this runs.
+		frameCallbacks.takeAll(pendingFrameCallbacks);
 
 		foreach (child; subsurfaceChildren)
 			child.parentCommitted();
@@ -309,6 +328,15 @@ final class WaiSurface : WlSurface, IFrameListener
 
 	override void damageBuffer(WlClient cl, int x, int y, int w, int h)
 	{
+		// damage_buffer coords are in the buffer's pixel space, need to transform into rootDamage space.
+		if (w > 0 && h > 0 && subsurfaceParent is null)
+		{
+			auto sx = x / bufferScale, sy = y / bufferScale;
+			auto sw = (w + bufferScale - 1) / bufferScale;
+			auto sh = (h + bufferScale - 1) / bufferScale;
+			_pendingRootDamage.add(Rect(sx, sy, cast(uint) sw, cast(uint) sh));
+		}
+
 		if (role !is null)
 			role.onDamageBuffer(Rect(x, y, cast(uint) w, cast(uint) h));
 	}
@@ -324,10 +352,6 @@ final class WaiSurface : WlSurface, IFrameListener
 		frameCallbacks.clear();
 	}
 
-	void onFrame(OutputManager.ManagedOutput output)
-	{
-		sendFrameCallbacks();
-	}
 }
 
 struct ViewportState
@@ -338,7 +362,7 @@ struct ViewportState
 	int destWidth = 0, destHeight = 0;
 }
 
-private struct ResourceList
+struct ResourceList
 {
 	private enum Capacity = 16;
 	private wl_resource*[Capacity] _items;
@@ -418,7 +442,7 @@ private SurfaceHit findSurfaceAtAbs(WaiSurface root, WaiSubsurface rootSub, Vect
 			continue;
 		auto subState = sub.surface.computeSurfaceState();
 		auto subPos = absPos + sub.position;
-		auto subSize = Vector2I(cast(int) subState.size.x, cast(int) subState.size.y);
+		auto subSize = cast(Vector2I) subState.size;
 		if (cursor.x >= subPos.x && cursor.x < subPos.x + subSize.x && cursor.y >= subPos.y && cursor.y < subPos.y + subSize
 				.y)
 		{

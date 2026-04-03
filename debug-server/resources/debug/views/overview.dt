@@ -1,4 +1,3 @@
-div.grid(style="grid-template-columns:repeat(3,1fr);")
-  != sceneHtml
+div.grid(style="grid-template-columns:repeat(2,1fr);")
   != runtimeHtml
   != memoryHtml

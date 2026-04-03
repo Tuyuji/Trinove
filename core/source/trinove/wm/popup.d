@@ -49,14 +49,6 @@ class Popup : View
 		return pos;
 	}
 
-	// Update container and content node position and size from current state
-	void syncGeometry()
-	{
-		auto absPos = absolutePosition();
-		containerNode.position = Vector2F(absPos.x, absPos.y);
-		contentNode.size = Vector2F(surfaceSize.x, surfaceSize.y);
-	}
-
 	// Request that this popup dismiss itself.
 	void dismiss()
 	{

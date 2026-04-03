@@ -3,8 +3,7 @@
 
 module trinove.layer;
 
-// Window stacking layers.
-// Used by both the WindowManager (logical state) and SceneGraph (rendering).
+// Window stacking layers used by the WindowManager.
 enum Layer
 {
 	Desktop, // Wallpaper

@@ -17,7 +17,6 @@ import trinove.compositor;
 import trinove.log;
 import trinove.debug_.server : DebugServer;
 import trinove.layer : Layer;
-import trinove.renderer.scene : SceneNode, SceneGraph;
 import trinove.backend.input : InputDeviceType;
 import trinove.wm.popup : Popup;
 import trinove.wm.conductor : WindowConductor;
@@ -34,11 +33,8 @@ import trinove.pointer_constraints : PointerConstraint, ConstraintType;
 void registerCompositorViews(DebugServer server, WaiCompositor compositor)
 {
 	server.registerView("/view/overview", (string p) => renderOverview(compositor));
-	server.registerView("/view/overview/scene", "/view/overview", (string p) => renderOverviewScene(compositor));
 	server.registerView("/view/overview/runtime", "/view/overview", (string p) => renderOverviewRuntime(compositor));
 	server.registerView("/view/overview/memory", "/view/overview", (string p) => renderOverviewMemory(compositor));
-	server.registerView("/view/scene", (string p) => renderSceneGraph(compositor));
-	server.registerPrefixView("/view/scene/layer/", "/view/scene", (string p) => renderLayerNodes(compositor, p));
 	server.registerView("/view/windows", (string p) => renderWindows(compositor));
 	server.registerView("/view/seats", (string p) => renderSeats(compositor));
 	server.registerPrefixView("/view/cursor/set/", "/view/seats", (string p) => handleSetCursorTheme(compositor, p));
@@ -384,26 +380,11 @@ private class TraceState
 
 private string renderOverview(WaiCompositor compositor)
 {
-	string sceneHtml = renderOverviewScene(compositor);
 	string runtimeHtml = renderOverviewRuntime(compositor);
 	string memoryHtml = renderOverviewMemory(compositor);
 
 	auto dst = appender!string;
-	dst.compileHTMLDietString!(import("debug/views/overview.dt"), sceneHtml, runtimeHtml, memoryHtml);
-	return dst.data;
-}
-
-private string renderOverviewScene(WaiCompositor compositor)
-{
-	auto scene = compositor.scene;
-
-	size_t nodeCount = 0;
-	foreach (i; 0 .. Layer.max + 1)
-		nodeCount += countNodes(scene.layerRoots[i]);
-	int layerCount = Layer.max + 1;
-
-	auto dst = appender!string;
-	dst.compileHTMLDietString!(import("debug/views/overview_scene.dt"), nodeCount, layerCount);
+	dst.compileHTMLDietString!(import("debug/views/overview.dt"), runtimeHtml, memoryHtml);
 	return dst.data;
 }
 
@@ -430,7 +411,6 @@ private string renderOverviewRuntime(WaiCompositor compositor)
 
 private string renderOverviewMemory(WaiCompositor compositor)
 {
-	auto scene = compositor.scene;
 	GC.Stats gcStats = GC.stats();
 
 	size_t gcUsedBytes = gcStats.usedSize;
@@ -443,7 +423,7 @@ private string renderOverviewMemory(WaiCompositor compositor)
 	{
 		import trinove.math : Rect, DamageList;
 
-		nonGcBytes = scene.damageArena.capacity * Rect.sizeof + DamageList.globalTotalCapacity * Rect.sizeof;
+		nonGcBytes = DamageList.globalTotalCapacity * Rect.sizeof;
 		isDebugBuild = true;
 	}
 
@@ -461,55 +441,6 @@ private string renderOverviewMemory(WaiCompositor compositor)
 	dst.compileHTMLDietString!(import("debug/views/overview_memory.dt"), privMemStr, gcUsedStr, gcPoolStr,
 			isDebugBuild, nonGcStr, dTrackedStr, hasExternalMem, externalStr);
 	return dst.data;
-}
-
-private string renderSceneGraph(WaiCompositor compositor)
-{
-	import trinove.math : DamageArena, DamageList;
-
-	auto scene = compositor.scene;
-
-	string damageArenaCard = buildDamageArenaCard(scene);
-	string damageListCard = "";
-	debug
-	{
-		damageListCard = buildDamageListCard();
-	}
-	string layersHtml = buildLayerTreeHtml(compositor);
-
-	auto dst = appender!string;
-	dst.compileHTMLDietString!(import("debug/views/scene.dt"), damageArenaCard, damageListCard, layersHtml);
-	return dst.data;
-}
-
-private string renderLayerNodes(WaiCompositor compositor, string path)
-{
-	auto parts = path.split("/");
-	if (parts.length < 5)
-		return "";
-
-	int layerIdx;
-	try
-	{
-		layerIdx = parts[4].to!int;
-	}
-	catch (Exception)
-	{
-		return "";
-	}
-
-	if (layerIdx < 0 || layerIdx > Layer.max)
-		return "";
-
-	auto root = compositor.scene.layerRoots[layerIdx];
-
-	if (root.children.length == 0)
-		return `<span class="text-muted">No nodes</span>`;
-
-	auto buf = appender!string;
-	foreach (child; root.children)
-		buildNodeTreeInto(buf, child);
-	return buf.data;
 }
 
 private string renderWindows(WaiCompositor compositor)
@@ -700,21 +631,6 @@ private string renderSimpleCard(string title, string key, string value)
 			title) ~ `</span></div><div class="card-body">` ~ buildKv(key, htmlEsc(value)) ~ `</div></div>`;
 }
 
-private string buildDamageArenaCard(SceneGraph scene)
-{
-	auto buf = appender!string;
-	buf ~= `<div class="card"><div class="card-header">` ~ `<span class="card-title">Damage Arena (Scene Nodes)</span>`
-		~ `</div><div class="card-body">`;
-	buf ~= buildKvMono("Capacity", format("%d rects (%d KB)", scene.damageArena.capacity, scene.damageArena.capacity * 16 / 1024));
-	debug
-	{
-		buf ~= buildKvMono("Peak Used", format("%d rects (%d B)", scene.damageArena.peakUsed, scene.damageArena.peakUsed * 16));
-		buf ~= buildKv("Reallocs", scene.damageArena.reallocCount.to!string);
-	}
-	buf ~= `</div></div>`;
-	return buf.data;
-}
-
 debug private string buildDamageListCard()
 {
 	import trinove.math : DamageList;
@@ -729,77 +645,6 @@ debug private string buildDamageListCard()
 			DamageList.globalPeakCapacity * 16 / 1024));
 	buf ~= `</div></div>`;
 	return buf.data;
-}
-
-private string buildLayerTreeHtml(WaiCompositor compositor)
-{
-	auto buf = appender!string;
-	foreach (i; 0 .. Layer.max + 1)
-	{
-		auto layer = cast(Layer) i;
-		auto root = compositor.scene.layerRoots[i];
-		auto childCount = root.children.length;
-		string props = treeProp(childCount.to!string ~ " children");
-
-		if (childCount > 0)
-		{
-			buf ~= `<div class="tree-node">` ~ `<span class="tree-toggle">&#9654;</span>` ~ `<span class="tree-type">`
-				~ htmlEsc(layerName(layer)) ~ `</span>` ~ props ~ `<div class="tree-children">`;
-			foreach (child; root.children)
-				buildNodeTreeInto(buf, child);
-			buf ~= `</div></div>`;
-		}
-		else
-		{
-			buf ~= `<div class="tree-node">` ~ `<span style="width:20px;display:inline-block"></span>`
-				~ `<span class="tree-type">` ~ htmlEsc(layerName(layer)) ~ `</span>` ~ props ~ `</div>`;
-		}
-	}
-	return buf.data;
-}
-
-private void buildNodeTreeInto(ref Appender!string buf, SceneNode node)
-{
-	import trinove.renderer.scene : RectNode, ShadowNode;
-
-	string nodeType = "SceneNode";
-	string props;
-
-	if (auto rect = cast(RectNode) node)
-	{
-		nodeType = "RectNode";
-		props = treeProp(format("color: rgba(%d,%d,%d,%.2f)", cast(int)(rect.color[0] * 255),
-				cast(int)(rect.color[1] * 255), cast(int)(rect.color[2] * 255), rect.color[3]));
-		if (rect.texture !is null)
-			props ~= treeProp(format("tex: %s", rect.texture));
-	}
-	else if (auto shadow = cast(ShadowNode) node)
-	{
-		nodeType = "ShadowNode";
-		props = treeProp(format("blur: %d", shadow.blurRadius));
-	}
-
-	props ~= treeProp(format("pos: %.0f,%.0f", node.position.x, node.position.y));
-	props ~= treeProp(format("size: %.0fx%.0f", node.size.x, node.size.y));
-
-	if (!node.visible)
-		props ~= `<span class="tag tag-unmapped">hidden</span>`;
-	if (node.dirty)
-		props ~= `<span class="tag tag-dirty">dirty</span>`;
-
-	if (node.children.length > 0)
-	{
-		buf ~= `<div class="tree-node">` ~ `<span class="tree-toggle">&#9654;</span>` ~ `<span class="tree-type">`
-			~ htmlEsc(nodeType) ~ `</span>` ~ props ~ `<div class="tree-children">`;
-		foreach (child; node.children)
-			buildNodeTreeInto(buf, child);
-		buf ~= `</div></div>`;
-	}
-	else
-	{
-		buf ~= `<div class="tree-node">` ~ `<span style="width:20px;display:inline-block"></span>`
-			~ `<span class="tree-type">` ~ htmlEsc(nodeType) ~ `</span>` ~ props ~ `</div>`;
-	}
 }
 
 private string buildConstraintHtml(WaiSurface surface, Seat[] seats)
@@ -869,7 +714,7 @@ private void buildSubsurfaceTreeInto(ref Appender!string buf, WaiSurface surface
 	foreach (i, child; surface.subsurfaceChildren)
 	{
 		string props;
-		if (child.contentNode.visible)
+		if (child.surface !is null && child.surface.currentBuffer !is null)
 			props ~= `<span class="tag tag-mapped">visible</span>`;
 		else
 			props ~= `<span class="tag tag-unmapped">hidden</span>`;
@@ -897,10 +742,13 @@ private void buildSubsurfaceTreeInto(ref Appender!string buf, WaiSurface surface
 		if (child.surface !is null && child.surface.inputRegionMode == InputRegionMode.passThrough)
 			props ~= `<span class="tag tag-unmapped">no-input</span>`;
 
-		auto pos = child.containerNode.position;
-		auto sz = child.containerNode.size;
-		props ~= treeProp(format("pos: %.0f,%.0f", pos.x, pos.y));
-		props ~= treeProp(format("size: %.0fx%.0f", sz.x, sz.y));
+		auto pos = child.position;
+		props ~= treeProp(format("pos: %d,%d", pos.x, pos.y));
+		if (child.surface !is null && child.surface.currentBuffer !is null)
+		{
+			auto ss = child.surface.computeSurfaceState();
+			props ~= treeProp(format("size: %dx%d", ss.size.x, ss.size.y));
+		}
 
 		bool hasNested = child.surface !is null && child.surface.subsurfaceChildren.length > 0;
 		string label = "Subsurface #" ~ (i + 1).to!string;
@@ -1064,14 +912,6 @@ private string buildDeviceTableHtml(DeviceRange)(DeviceRange devices)
 }
 
 // === Helper functions ===
-
-private size_t countNodes(SceneNode node)
-{
-	size_t count = 1;
-	foreach (child; node.children)
-		count += countNodes(child);
-	return count;
-}
 
 private size_t countPopups(Popup popup)
 {

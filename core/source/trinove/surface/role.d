@@ -43,4 +43,8 @@ interface ISurfaceExtension
 
 	// Called when the wl_surface hosting this extension is destroyed.
 	void onSurfaceDestroyed();
+
+	// Called by XdgTopLevel's sendConfigureWire just before xdg_surface.configure
+	// is sent, so injected events share the same serial.
+	void onPreConfigure();
 }
