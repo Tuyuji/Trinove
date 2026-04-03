@@ -51,6 +51,18 @@ pure nothrow @safe @nogc:
 	{
 		return TVector(cast(T)(x / scalar), cast(T)(y / scalar), cast(T)(z / scalar));
 	}
+
+	ref TVector opOpAssign(string op)(TVector rhs) if (op == "+" || op == "-" || op == "*" || op == "/")
+	{
+		this = mixin("this " ~ op ~ " rhs");
+		return this;
+	}
+
+	ref TVector opOpAssign(string op)(T scalar) if (op == "*" || op == "/")
+	{
+		this = mixin("this " ~ op ~ " scalar");
+		return this;
+	}
 }
 
 struct TVector2(T)
@@ -95,6 +107,18 @@ pure nothrow @safe @nogc:
 	TVector2 opBinary(string op)(T scalar) const if (op == "/")
 	{
 		return TVector2(cast(T)(x / scalar), cast(T)(y / scalar));
+	}
+
+	ref TVector2 opOpAssign(string op)(TVector2 rhs) if (op == "+" || op == "-" || op == "*" || op == "/")
+	{
+		this = mixin("this " ~ op ~ " rhs");
+		return this;
+	}
+
+	ref TVector2 opOpAssign(string op)(T scalar) if (op == "*" || op == "/")
+	{
+		this = mixin("this " ~ op ~ " scalar");
+		return this;
 	}
 }
 
