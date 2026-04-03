@@ -6,7 +6,6 @@ module trinove.surface.dmabuf;
 import trinove.protocols.linux_dmabuf;
 import trinove.surface.buffer : IWaylandBuffer;
 import trinove.surface.surface : WaiSurface;
-import trinove.xdg_shell.surface : WaiXdgSurface;
 import trinove.math.vector : Vector2U;
 import trinove.math.rect : Rect;
 import trinove.gpu.itexture : ITexture;
@@ -276,12 +275,14 @@ class WaiLinuxDmabufFeedback : ZwpLinuxDmabufFeedbackV1
 	{
 		if (_surface !is null)
 		{
+			//TODO: Ask IWindowManager about the correct gpu to use for the given surface.
 			import trinove.output_manager : OutputManager;
 			import trinove.subsystem : SubsystemManager, Services;
 
 			auto waiSurface = cast(WaiSurface) _surface;
 			if (waiSurface !is null)
 			{
+				import trinove.xdg_shell.surface : WaiXdgSurface;
 				auto xdg = cast(WaiXdgSurface) waiSurface.role;
 				if (xdg !is null)
 				{
