@@ -8,7 +8,7 @@ import trinove.gpu.rhi : GpuDevice, RHI;
 import trinove.gpu.itexture : ITexture;
 import trinove.gpu.format : PixelFormat, toWGPU, isOpaqueAlpha;
 import trinove.log;
-import webgpu;
+import dawned;
 
 // Per-device
 struct DeviceTexture

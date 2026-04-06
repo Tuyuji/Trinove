@@ -12,7 +12,7 @@ import trinove.gpu.itexture : ITexture;
 import trinove.gpu.shared_texture : SharedTexture2D, DmaBufPlane;
 import trinove.gpu.rhi : GpuDevice, RHI;
 import trinove.log;
-import webgpu;
+import dawned;
 import trinove.util : onDestroyCallDestroy;
 import wayland.server;
 import wayland.server.protocol : WlBuffer;

@@ -5,7 +5,7 @@ module trinove.output;
 
 import trinove.math;
 import trinove.gpu.rhi : GpuDevice;
-import webgpu : WGPUInstance, WGPUSurface;
+import dawned : WGPUInstance, WGPUSurface;
 import wayland.server.protocol : WlOutput;
 
 // Hardware cursor plane abstraction.

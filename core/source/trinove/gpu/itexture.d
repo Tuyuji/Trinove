@@ -4,7 +4,7 @@
 module trinove.gpu.itexture;
 
 import trinove.gpu.rhi : GpuDevice;
-import webgpu : WGPUTextureView;
+import dawned : WGPUTextureView;
 
 // Interface for textures usable by the renderer.
 //

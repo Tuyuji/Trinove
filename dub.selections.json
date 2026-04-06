@@ -4,9 +4,10 @@
 		"bindbc-common": "1.0.5",
 		"bindbc-loader": "1.1.5",
 		"bindbc-sdl": "2.3.4",
+		"dawned": "0.1.0",
 		"derelict-util": "2.0.6",
 		"diet-ng": "1.8.4",
-		"wayland": "0.5.0-waiku",
+		"wayland": {"version":"488d49fd7ec3e997f5855cfde8e2ffc4049a0a95","repository":"git+https://github.com/Tuyuji/wayland-d.git"},
 		"xcb-d": "2.1.1+1.11.1",
 		"xkbcommon-d": "0.5.1"
 	}

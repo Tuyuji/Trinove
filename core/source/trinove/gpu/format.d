@@ -3,7 +3,7 @@
 
 module trinove.gpu.format;
 
-import webgpu : WGPUTextureFormat;
+import dawned : WGPUTextureFormat;
 
 // Pixel formats used by Trinove for Wayland buffer types (SHM and DMA-BUF).
 // WebGPU doesn't have X channel formats so thats why we have our own format enum.

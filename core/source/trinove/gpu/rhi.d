@@ -3,7 +3,7 @@
 
 module trinove.gpu.rhi;
 
-import webgpu;
+import dawned;
 import trinove.log;
 import trinove.events : OnQueueWorkDone;
 import std.string : fromStringz;

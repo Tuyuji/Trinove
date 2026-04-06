@@ -6,7 +6,7 @@ module trinove.gpu.shader;
 import trinove.gpu.resource;
 import trinove.gpu.rhi : GpuDevice, RHI;
 import trinove.log;
-import webgpu;
+import dawned;
 
 // Per-device
 struct DeviceShader

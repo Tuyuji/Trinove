@@ -2,12 +2,10 @@
 	"name": "core",
 	"targetType": "library",
 	"sourcePaths": [
-		"source",
-		"bindings"
+		"source"
 	],
 	"importPaths": [
-		"source",
-		"bindings"
+		"source"
 	],
 	"dependencies": {
 		"wayland": {
@@ -16,7 +14,8 @@
 		},
 		"wayland:server": "*",
 		"wayland:scanner": "*",
-		"xkbcommon-d": "~>0.5.1"
+		"xkbcommon-d": "~>0.5.1",
+		"dawned": "~>0.1.0"
 	},
 	"stringImportPaths": ["resources"],
 	"dflags": ["-preview=bitfields"],

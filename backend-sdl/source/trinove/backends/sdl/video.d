@@ -11,7 +11,7 @@ import trinove.math;
 import trinove.output : Output;
 import trinove.virtual_output;
 import trinove.gpu.rhi : GpuDevice, RHI;
-import webgpu;
+import dawned;
 import bindbc.sdl;
 import std.string : fromStringz;
 import wayland.server.protocol : WlOutput;

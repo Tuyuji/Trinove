@@ -7,7 +7,7 @@ import trinove.gpu.resource;
 import trinove.gpu.shader : Shader;
 import trinove.gpu.rhi : GpuDevice, RHI;
 import trinove.log;
-import webgpu;
+import dawned;
 
 WGPUBindGroupLayoutEntry uniformBinding(uint idx, WGPUShaderStage vis, bool dynamic = false) pure nothrow @nogc
 {
@@ -163,7 +163,7 @@ class RenderPipeline : MultiDeviceResource!DevicePipeline
 		WGPUColorTargetState colorTarget;
 		colorTarget.format = _config.targetFormat;
 		colorTarget.blend = _config.enableBlend ? &blendState : null;
-		colorTarget.writeMask = WGPUColorWriteMask_All;
+		colorTarget.writeMask = WGPUColorWriteMask.all;
 
 		WGPUFragmentState fragmentState;
 		fragmentState.module_ = devShader.shaderModule;

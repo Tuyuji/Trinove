@@ -12,7 +12,7 @@ import trinove.renderer.canvas;
 import trinove.events;
 import trinove.gpu;
 import trinove.backend.video;
-import webgpu;
+import dawned;
 import std.algorithm : remove;
 
 // WebGPU requires uniform buffer dynamic offsets to be aligned to this
@@ -231,7 +231,7 @@ class RenderSubsystem : ISubsystem
 
 	private void renderOutput(OutputManager.ManagedOutput mo)
 	{
-		import webgpu : wgpuDeviceTick;
+		import dawned : wgpuDeviceTick;
 
 		auto device = mo.gpuDevice;
 

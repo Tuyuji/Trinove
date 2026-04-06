@@ -16,7 +16,7 @@ import wayland.server;
 import wayland.server.protocol : WlOutput;
 import std.algorithm : remove;
 import core.time : MonoTime;
-import webgpu;
+import dawned;
 
 final class OutputManager : ISubsystem
 {

@@ -8,7 +8,7 @@ import trinove.gpu.itexture : ITexture;
 import trinove.gpu.format : PixelFormat, fromDrm, toWGPU, isOpaqueAlpha;
 import trinove.linux.drm;
 import trinove.log;
-import webgpu;
+import dawned;
 
 // Texture imported from external memory (DMA-BUF, etc.)
 //
