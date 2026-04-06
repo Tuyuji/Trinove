@@ -1,0 +1,12 @@
+{
+	"name": "backend-sdl",
+	"targetType": "library",
+	
+	"dependencies": {
+		"trinove:core": { "path": ".." },
+		"bindbc-sdl": "~>2.3.4"
+	},
+	"libs": [
+		"SDL3"
+	]
+}

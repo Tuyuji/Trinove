@@ -1,0 +1,51 @@
+{
+    "protocols": [
+        {
+            "xml": "protocols/xdg-shell.xml",
+            "module": "trinove.protocols.xdg_shell",
+            "output": "source/trinove/protocols/xdg_shell.d"
+        },
+        {
+            "xml": "protocols/linux-drm-syncobj-v1.xml",
+            "module": "trinove.protocols.linux_drm_syncobj",
+            "output": "source/trinove/protocols/linux_drm_syncobj.d"
+        },
+        {
+            "xml": "protocols/relative-pointer-unstable-v1.xml",
+            "module": "trinove.protocols.relative_pointer_v1",
+            "output": "source/trinove/protocols/relative_pointer_v1.d"
+        },
+        {
+            "xml": "protocols/pointer-constraints-unstable-v1.xml",
+            "module": "trinove.protocols.pointer_constraints_v1",
+            "output": "source/trinove/protocols/pointer_constraints_v1.d"
+        },
+        {
+            "xml": "protocols/viewporter.xml",
+            "module": "trinove.protocols.viewporter",
+            "output": "source/trinove/protocols/viewporter.d"
+        },
+        {
+            "xml": "protocols/tablet-v2.xml",
+            "module": "trinove.protocols.tablet_v2",
+            "output": "source/trinove/protocols/tablet_v2.d"
+        },
+        {
+            "xml": "protocols/cursor-shape-v1.xml",
+            "module": "trinove.protocols.cursor_shape_v1",
+            "output": "source/trinove/protocols/cursor_shape_v1.d",
+            "extra_imports": ["trinove.protocols.tablet_v2 : ZwpTabletToolV2"]
+        },
+        {
+            "xml": "protocols/linux-dmabuf-v1.xml",
+            "module": "trinove.protocols.linux_dmabuf",
+            "output": "source/trinove/protocols/linux_dmabuf.d"
+        },
+        {
+            "xml": "protocols/xdg-decoration-unstable-v1.xml",
+            "module": "trinove.protocols.xdg_decoration_v1",
+            "output": "source/trinove/protocols/xdg_decoration_v1.d",
+            "extra_imports": ["trinove.protocols.xdg_shell : XdgToplevel"]
+        }
+    ]
+}

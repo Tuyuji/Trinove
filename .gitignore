@@ -1,0 +1,42 @@
+# Compiled Object files
+*.o
+*.obj
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.a
+*.lib
+
+# Executables
+*.exe
+
+# DUB
+.dub
+docs.json
+__dummy.html
+docs/
+*-test-library
+
+# Code coverage
+*.lst
+
+**/.idea
+**/.vscode
+profilegc.log
+**/dub.selections.json
+
+/trinove
+trinove.so
+trinove.dylib
+trinove.dll
+trinove.a
+trinove.lib
+trinove-test-*
+*.pdb
+
+# Generated protocols
+core/source/trinove/protocols/*

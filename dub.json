@@ -1,0 +1,26 @@
+{
+	"name": "trinove",
+	"description": "A wayland compositor",
+	"license": "MPL-2.0",
+	"authors": [
+		"Reece Hagan"
+	],
+	"copyright": "Copyright © 2026, Reece Hagan",
+	"targetType": "executable",
+	"targetName": "trinove",
+	"dependencies": {
+		"trinove:core": "*",
+		"trinove:backend-sdl": "*"
+	},
+
+	"subPackages": [
+		"./core/",
+		"./backend-sdl/"
+	],
+
+	"configurations": [
+		{
+			"name": "default"
+		}
+	]
+}
