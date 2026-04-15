@@ -6,8 +6,6 @@
 		"Reece Hagan"
 	],
 	"copyright": "Copyright © 2026, Reece Hagan",
-	"targetType": "executable",
-	"targetName": "trinove",
 	"dependencies": {
 		"trinove:core": "*",
 		"trinove:backend-sdl": "*"
