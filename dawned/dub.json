@@ -1,0 +1,9 @@
+{
+	"authors": [
+		"Reece Hagan"
+	],
+	"copyright": "Copyright © 2026, Reece Hagan",
+	"description": "Dawn bindings for D",
+	"license": "BSL-1.0",
+	"name": "dawned"
+}

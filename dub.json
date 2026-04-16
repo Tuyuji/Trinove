@@ -5,6 +5,7 @@
 	"authors": [
 		"Reece Hagan"
 	],
+	"targetType": "none",
 	"copyright": "Copyright © 2026, Reece Hagan",
 	"dependencies": {
 		"trinove:core": "*",

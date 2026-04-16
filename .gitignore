@@ -40,3 +40,5 @@ trinove-test-*
 
 # Generated protocols
 core/source/trinove/protocols/*
+
+dawn/

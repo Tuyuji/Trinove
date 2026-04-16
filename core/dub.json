@@ -15,7 +15,7 @@
 		"wayland:server": "*",
 		"wayland:scanner": "*",
 		"xkbcommon-d": "~>0.5.1",
-		"dawned": "~>0.1.0"
+		"dawned": { "path": "../dawned" }
 	},
 	"stringImportPaths": ["resources"],
 	"dflags": ["-preview=bitfields"],
@@ -26,6 +26,9 @@
 	],
 	"lflags": [
 		"-L$PACKAGE_DIR/.."
+	],
+	"lflags-linux": [
+		"-L$PACKAGE_DIR/../dawn/lib/ubuntu"
 	],
 	"preGenerateCommands": [
 		"python3 $PACKAGE_DIR/../tools/generate_protocols.py $PACKAGE_DIR/protocols.json"

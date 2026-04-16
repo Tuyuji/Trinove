@@ -4,7 +4,7 @@
 		"bindbc-common": "1.0.5",
 		"bindbc-loader": "1.1.5",
 		"bindbc-sdl": "2.3.4",
-		"dawned": "0.1.0",
+		"dawned": {"path":"dawned"},
 		"derelict-util": "2.0.6",
 		"diet-ng": "1.8.4",
 		"wayland": {"version":"488d49fd7ec3e997f5855cfde8e2ffc4049a0a95","repository":"git+https://github.com/Tuyuji/wayland-d.git"},
